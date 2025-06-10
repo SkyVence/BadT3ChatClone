@@ -7,8 +7,6 @@ import { useAuth } from "../provider/context";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { ThemeToggle } from "../theme-toggle";
-import { useQuery } from "@tanstack/react-query";
-import { trpc } from "@/utils/trpc";
 
 export function ChatMessages({ messages }: { messages: string[] }) {
     return (
@@ -32,9 +30,7 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
     const router = useRouter()
     const { user, signOut } = useAuth()
 
-    const threadsOptions = useQuery(trpc.chat.getThreads.queryOptions())
-    const threads = threadsOptions.data;
-
+    const threads: any[] = []
 
     return (
         <Sidebar variant="inset">

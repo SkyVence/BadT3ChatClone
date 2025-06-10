@@ -1,7 +1,8 @@
 import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, uuid, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid } from "drizzle-orm/pg-core";
 import { threads } from "./threads";
 import { attachments } from "./attachment";
+import { providerEnum } from "./enum";
 
 export const user = pgTable("user", {
     id: text("id").primaryKey(),
@@ -12,8 +13,6 @@ export const user = pgTable("user", {
     createdAt: timestamp('created_at').notNull(),
     updatedAt: timestamp('updated_at').notNull()
 });
-
-export const providerEnum = pgEnum("provider", ["anthropic", "openai", "google"]);
 
 export const userKeys = pgTable("user_keys", {
     id: uuid("id").primaryKey().defaultRandom(),

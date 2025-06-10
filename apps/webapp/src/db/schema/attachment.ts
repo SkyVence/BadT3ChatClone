@@ -1,7 +1,7 @@
 import { integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core"
-import { messages } from "./threads"
 import { relations } from "drizzle-orm"
 import { user } from "./auth"
+import { messages } from "./threads"
 
 export const attachments = pgTable("attachments", {
     id: uuid("id").primaryKey().defaultRandom(),

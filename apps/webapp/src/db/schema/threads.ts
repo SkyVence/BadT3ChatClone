@@ -1,11 +1,8 @@
-import { pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core"
-import { providerEnum, user } from "./auth"
+import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core"
 import { relations } from "drizzle-orm"
+import { user } from "./auth"
 import { attachments } from "./attachment"
-
-
-export const streamStatus = pgEnum("stream_status", ["streaming", "complete", "error"]);
-export const messageRole = pgEnum("message_role", ["user", "assistant", "system"]);
+import { streamStatus, messageRole, providerEnum } from "./enum"
 
 export const threads = pgTable("threads", {
     id: uuid("id").primaryKey().defaultRandom(),
