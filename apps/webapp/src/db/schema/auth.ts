@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, uuid } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid, pgEnum } from "drizzle-orm/pg-core";
 import { threads } from "./threads";
 import { attachments } from "./attachment";
 
@@ -13,10 +13,12 @@ export const user = pgTable("user", {
     updatedAt: timestamp('updated_at').notNull()
 });
 
+export const providerEnum = pgEnum("provider", ["anthropic", "openai", "google"]);
+
 export const userKeys = pgTable("user_keys", {
     id: uuid("id").primaryKey().defaultRandom(),
     userId: text("user_id").references(() => user.id),
-    provider: text("provider").notNull(),
+    provider: providerEnum("provider").notNull(),
     hashedKey: text("hashed_key").notNull(),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
