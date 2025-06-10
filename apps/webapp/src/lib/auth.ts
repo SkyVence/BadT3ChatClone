@@ -9,12 +9,6 @@ export const auth = betterAuth({
         provider: "pg",
         schema: schema,
     }),
-    trustedOrigins: [
-        process.env.CORS_ORIGIN || "",
-    ],
-    emailAndPassword: {
-        enabled: true,
-    },
     socialProviders: {
         github: {
             clientId: process.env.GITHUB_CLIENT_ID as string,
