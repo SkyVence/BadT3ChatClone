@@ -69,7 +69,7 @@ export const models = [
     {
         provider: "anthropic",
         name: "Claude 3.7 sonnet",
-        version: "claude-3.7-sonnet",
+        version: "claude-3-7-sonnet-20250219",
         capabilities: {
             attach: true,
         }

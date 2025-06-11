@@ -7,6 +7,9 @@ import { SidebarProvider } from "@/components/ui/sidebar"
 import { AuthProvider } from "./context"
 import { AppContent } from "@/components/content"
 import { usePathname } from "next/navigation"
+import { TRPCProvider } from "@/utils/trpc"
+import { createTRPCClient, httpBatchLink } from "@trpc/client"
+import type { AppRouter } from "@/routers"
 
 export function Provider({ children }: { children: ReactNode }) {
     const [queryClient] = useState(() => new QueryClient({
@@ -16,25 +19,44 @@ export function Provider({ children }: { children: ReactNode }) {
             },
         },
     }))
+
+    const [trpcClient] = useState(() =>
+        createTRPCClient<AppRouter>({
+            links: [
+                httpBatchLink({
+                    url: '/api/trpc',
+                    fetch(url, options) {
+                        return fetch(url, {
+                            ...options,
+                            credentials: "include",
+                        });
+                    },
+                }),
+            ],
+        }),
+    );
+
     const pathname = usePathname()
-    const noSidebarRoutes = ["/settings"]
+    const noSidebarRoutes = ["/settings", "/chat", "/chat/test"]
 
     return (
         <AuthProvider>
             <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
                 <SidebarProvider>
                     <QueryClientProvider client={queryClient}>
-                        {noSidebarRoutes.includes(pathname) ? (
-                            <Fragment>
-                                <main className="min-h-screen w-full">
+                        <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
+                            {noSidebarRoutes.includes(pathname) ? (
+                                <Fragment>
+                                    <main className="min-h-screen w-full">
+                                        {children}
+                                    </main>
+                                </Fragment>
+                            ) : (
+                                <AppContent>
                                     {children}
-                                </main>
-                            </Fragment>
-                        ) : (
-                            <AppContent>
-                                {children}
-                            </AppContent>
-                        )}
+                                </AppContent>
+                            )}
+                        </TRPCProvider>
                     </QueryClientProvider>
                 </SidebarProvider>
             </ThemeProvider>

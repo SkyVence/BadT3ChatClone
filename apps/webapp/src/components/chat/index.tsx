@@ -22,10 +22,25 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover"
 
-export function ChatInput({ handleSend }: { handleSend: (message: string) => void }) {
+interface ChatInputProps {
+    handleSend: (message: string) => void;
+    selectedModel?: string;
+    onModelChange?: (model: string) => void;
+    isLoading?: boolean;
+}
+
+export function ChatInput({
+    handleSend,
+    selectedModel: externalSelectedModel,
+    onModelChange,
+    isLoading = false
+}: ChatInputProps) {
     const [message, setMessage] = useState("")
-    const [selectedModel, setSelectedModel] = useState("")
+    const [internalSelectedModel, setInternalSelectedModel] = useState("")
     const [open, setOpen] = useState(false)
+
+    const selectedModel = externalSelectedModel ?? internalSelectedModel
+    const setSelectedModel = onModelChange ?? setInternalSelectedModel
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -134,7 +149,7 @@ export function ChatInput({ handleSend }: { handleSend: (message: string) => voi
                             handleSend(message)
                             setMessage("")
                         }}
-                        disabled={!message.trim()}
+                        disabled={!message.trim() || isLoading}
                         className="bg-primary hover:bg-primary/90 disabled:bg-muted-foreground disabled:opacity-50 h-8 w-8 p-0 rounded-full"
                     >
                         <ArrowUp className="h-4 w-4 text-primary-foreground" />

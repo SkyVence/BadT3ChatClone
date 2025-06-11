@@ -44,9 +44,17 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { LogOutIcon, TrashIcon, PlusIcon, KeyIcon, SunIcon, MoonIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
-import { useQuery, useMutation } from "@tanstack/react-query"
-import { trpc } from "@/utils/trpc"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useTRPC } from "@/utils/trpc"
 import { useTheme } from "next-themes"
+
+type ApiKey = {
+    id: string;
+    provider: "anthropic" | "openai" | "google";
+    key: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
 
 export default function SettingsPage() {
     const { user, signOut, deleteUser } = useAuth()
@@ -55,15 +63,21 @@ export default function SettingsPage() {
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
     const [mounted, setMounted] = useState(false)
     const { theme, setTheme } = useTheme()
+    const trpc = useTRPC()
+    const queryClient = useQueryClient()
 
     useEffect(() => {
         setMounted(true)
     }, [])
+
     const [newKeyForm, setNewKeyForm] = useState({
         provider: "",
         key: ""
     })
-    const apiKeys = useQuery(trpc.getApiKeys.queryOptions())
+
+    const apiKeys = useQuery(
+        trpc.settings.getApiKeys.queryOptions()
+    )
 
     const handleDeleteAccount = () => {
         deleteUser();
@@ -80,29 +94,42 @@ export default function SettingsPage() {
 
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
-            setSelectedKeys(apiKeys.data?.map(key => key.id) || [])
+            setSelectedKeys(apiKeys.data?.map((key: ApiKey) => key.id) || [])
         } else {
             setSelectedKeys([])
         }
     }
 
-    const createKeyMutation = useMutation(trpc.createApiKey.mutationOptions())
-    const deleteKeyMutation = useMutation(trpc.deleteApiKey.mutationOptions())
-
-    const handleCreateKey = () => {
-        createKeyMutation.mutate({
-            provider: newKeyForm.provider,
-            key: newKeyForm.key
-        }, {
+    const createKeyMutation = useMutation(
+        trpc.settings.createApiKey.mutationOptions({
             onSuccess: () => {
                 setIsCreateDialogOpen(false)
                 setNewKeyForm({ provider: "", key: "" })
                 // Refetch API keys after successful creation
-                apiKeys.refetch()
+                queryClient.invalidateQueries({ queryKey: trpc.settings.getApiKeys.queryKey() })
             },
             onError: (error) => {
                 console.error("Failed to create API key:", error)
             }
+        })
+    )
+
+    const deleteKeyMutation = useMutation(
+        trpc.settings.deleteApiKey.mutationOptions({
+            onSuccess: () => {
+                // Refetch API keys after successful deletion
+                queryClient.invalidateQueries({ queryKey: trpc.settings.getApiKeys.queryKey() })
+            },
+            onError: (error) => {
+                console.error("Failed to delete API key:", error)
+            }
+        })
+    )
+
+    const handleCreateKey = () => {
+        createKeyMutation.mutate({
+            provider: newKeyForm.provider as "anthropic" | "openai" | "google",
+            key: newKeyForm.key
         })
     }
 
@@ -117,8 +144,6 @@ export default function SettingsPage() {
                 )
             )
             setSelectedKeys([])
-            // Refetch API keys after successful deletion
-            apiKeys.refetch()
         } catch (error) {
             console.error("Failed to delete API keys:", error)
         }
@@ -333,7 +358,7 @@ export default function SettingsPage() {
                                                             </TableCell>
                                                         </TableRow>
                                                     ) : (
-                                                        apiKeys.data.map((apiKey) => (
+                                                        apiKeys.data.map((apiKey: ApiKey) => (
                                                             <TableRow key={apiKey.id}>
                                                                 <TableCell>
                                                                     <Checkbox
