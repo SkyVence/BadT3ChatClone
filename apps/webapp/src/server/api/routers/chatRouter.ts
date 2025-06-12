@@ -1,13 +1,13 @@
 import { db } from "@/db";
 import { messages, threads } from "@/db/schema";
-import { 
-    protectedProcedure, 
-    router, 
-    createTRPCError, 
-    validateRequired, 
-    validateOwnership, 
+import {
+    protectedProcedure,
+    router,
+    createTRPCError,
+    validateRequired,
+    validateOwnership,
     handleDatabaseError,
-    handleExternalAPIError 
+    handleExternalAPIError
 } from "@/server/api/trpc";
 import { and, desc, eq, lt } from "drizzle-orm";
 import z from "zod";
@@ -36,11 +36,11 @@ export const chatRouter = router({
                             userId,
                             title: prompt.slice(0, 50) + (prompt.length > 50 ? '...' : ''),
                         }).returning();
-                        
+
                         if (!newThread) {
                             throw createTRPCError('DATABASE_ERROR', 'Failed to create new conversation');
                         }
-                        
+
                         finalThreadId = newThread.id;
                     } catch (error) {
                         handleDatabaseError(error, 'create conversation');
@@ -86,6 +86,9 @@ export const chatRouter = router({
                         if (response.status === 401) {
                             throw createTRPCError('API_KEY_NOT_FOUND', `${provider} API key not found or invalid`);
                         }
+                        if (response.status === 460) {
+                            throw createTRPCError('API_KEY_NOT_FOUND', `${provider} API key not found. Please add your API key in settings.`);
+                        }
                         if (response.status === 403) {
                             throw createTRPCError('API_KEY_QUOTA_EXCEEDED', `${provider} API quota exceeded`);
                         }
@@ -95,12 +98,12 @@ export const chatRouter = router({
                         if (response.status >= 500) {
                             throw createTRPCError('SERVICE_UNAVAILABLE', `${provider} service is temporarily unavailable`);
                         }
-                        
+
                         throw createTRPCError('STREAM_ERROR', `Failed to start streaming (${response.status})`);
                     }
 
                     const result = await response.json();
-                    
+
                     if (!result.messageId || !result.userMessageId) {
                         throw createTRPCError('STREAM_ERROR', 'Invalid response from streaming service');
                     }
@@ -207,7 +210,7 @@ export const chatRouter = router({
                         thread: true,
                     },
                 });
-                
+
                 if (!message) {
                     throw createTRPCError('NOT_FOUND', 'Message not found');
                 }

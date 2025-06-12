@@ -13,8 +13,9 @@ import { Fragment, useEffect, useRef, useState, useCallback } from "react";
 import { Skeleton } from "../ui/skeleton";
 import type { Thread } from "@/types/threads";
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useStreamer } from "@/context/chat";
+import { Button } from "../ui/button";
 
 export function ChatMessages({ messages }: { messages: string[] }) {
     return (
@@ -62,7 +63,7 @@ function formatTime(dateString: string): string {
 export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
     const { user, signOut } = useAuth();
     const pathname = usePathname();
-    const { threadId: currentThreadId, optimisticMessage } = useStreamer();
+    const { threadId: currentThreadId, optimisticMessage, startNewThread } = useStreamer();
     const loaderRef = useRef<HTMLDivElement>(null);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const [isNearBottom, setIsNearBottom] = useState(false);
@@ -185,6 +186,53 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
 
+    // Group threads by date category
+    function groupThreadsByDate(threads: Thread[]) {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        const last7 = new Date(today);
+        last7.setDate(today.getDate() - 7);
+        const last30 = new Date(today);
+        last30.setDate(today.getDate() - 30);
+
+        const groups: { [key: string]: Thread[] } = {
+            'Today': [],
+            'Yesterday': [],
+            'Last 7 days': [],
+            'Last 30 days': [],
+            '30+ days': [],
+        };
+
+        threads.forEach(thread => {
+            const updated = new Date(thread.updatedAt);
+            if (
+                updated >= today
+            ) {
+                groups['Today'].push(thread);
+            } else if (
+                updated.getDate() === yesterday.getDate() &&
+                updated.getMonth() === yesterday.getMonth() &&
+                updated.getFullYear() === yesterday.getFullYear()
+            ) {
+                groups['Yesterday'].push(thread);
+            } else if (updated > last7) {
+                groups['Last 7 days'].push(thread);
+            } else if (updated > last30) {
+                groups['Last 30 days'].push(thread);
+            } else {
+                groups['30+ days'].push(thread);
+            }
+        });
+        return groups;
+    }
+
+    const groupedThreads = groupThreadsByDate(sortedThreads);
+    const groupOrder = ['Today', 'Yesterday', 'Last 7 days', 'Last 30 days', '30+ days'];
+
+    const router = useRouter();
+
     return (
         <Sidebar variant="inset" className="flex flex-col h-full min-h-screen">
             <SidebarHeader>
@@ -192,55 +240,26 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
                     <SearchIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                     <Input type="search" placeholder="Search..." className="border-none focus-visible:ring-0 pl-8" />
                 </div>
-                <SidebarGroup>
-                    <SidebarGroupLabel>
-                        Projects
-                    </SidebarGroupLabel>
-                    <SidebarGroupAction asChild>
-                        <Link href="/projects/new">
+                <SidebarMenu>
+                    <SidebarMenuItem>
+                        <Button onClick={() => {
+                            startNewThread();
+                            router.push("/");
+                        }} className="w-full" variant="outline">
                             <Plus className="size-4" />
-                        </Link>
-                    </SidebarGroupAction>
-                    <SidebarGroupContent>
-                        <SidebarMenu>
-                            <SidebarMenuItem>
-                                <SidebarMenuButton>
-                                    <span>Project 1</span>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
-                            <SidebarMenuItem>
-                                <SidebarMenuButton>
-                                    <span>Project 1</span>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
-                            <SidebarMenuItem>
-                                <SidebarMenuButton>
-                                    <span>Project 1</span>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
-                            <SidebarMenuItem>
-                                <SidebarMenuButton>
-                                    <span>Project 1</span>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
-                            <SidebarMenuItem>
-                                <SidebarMenuButton>
-                                    <span>See more...</span>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
-                        </SidebarMenu>
-                    </SidebarGroupContent>
-                </SidebarGroup>
+                            New Chat
+                        </Button>
+                    </SidebarMenuItem>
+                </SidebarMenu>
             </SidebarHeader>
             <SidebarContent>
                 {/** Threads Infinite Scroll */}
                 <SidebarGroup className="flex-1">
-                    <SidebarGroupLabel>Recent Chats</SidebarGroupLabel>
-                    <SidebarGroupAction asChild>
-                        <Link href="/">
-                            <Plus className="size-4" />
-                        </Link>
-                    </SidebarGroupAction>
+                    {/* Fixed header: label + action */}
+                    <div className="flex items-center justify-between px-4 py-2 sticky top-0 z-10 backdrop-blur-lg rounded-md">
+                        <SidebarGroupLabel className="text-md font-medium">Recent Chats</SidebarGroupLabel>
+                    </div>
+                    {/* Scrollable chat list */}
                     <SidebarGroupContent className="flex-1">
                         <ScrollArea className="h-full" ref={scrollAreaRef}>
                             <SidebarMenu>
@@ -252,33 +271,38 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
                                     </SidebarMenuItem>
                                 ) : (
                                     <Fragment>
-                                        {sortedThreads.map((thread: any) => {
-                                            const isActive = pathname === `/chat/${thread.id}`;
-                                            const latestMessage = thread.messages?.[0];
-                                            const preview = latestMessage ? formatPreview(latestMessage.content) : "New conversation";
-                                            const isOptimistic = thread.id === optimisticThread?.id;
+                                        {groupOrder.map(group => (
+                                            groupedThreads[group].length > 0 && (
+                                                <Fragment key={group}>
+                                                    <SidebarGroupLabel className="px-4 pt-4 pb-1 text-xs uppercase tracking-wider opacity-70">
+                                                        {group}
+                                                    </SidebarGroupLabel>
+                                                    {groupedThreads[group].map((thread: any) => {
+                                                        const isActive = pathname === `/chat/${thread.id}`;
+                                                        const latestMessage = thread.messages?.[0];
+                                                        const preview = latestMessage ? formatPreview(latestMessage.content) : "New conversation";
+                                                        const isOptimistic = thread.id === optimisticThread?.id;
 
-                                            return (
-                                                <SidebarMenuItem key={thread.id}>
-                                                    <SidebarMenuButton asChild className={isActive ? "bg-accent" : ""}>
-                                                        <Link href={`/chat/${thread.id}`} className="flex flex-col items-start gap-1 py-3 h-auto">
-                                                            <div className="flex items-center justify-between w-full">
-                                                                <span className="truncate max-w-[160px] block font-medium text-sm">
-                                                                    {thread.title}
-                                                                </span>
-                                                                <span className="text-xs text-muted-foreground shrink-0">
-                                                                    {formatTime(thread.updatedAt)}
-                                                                </span>
-                                                            </div>
-                                                            <span className="text-xs text-muted-foreground truncate max-w-[210px] block text-left">
-                                                                {isOptimistic && <span className="text-blue-500 mr-1">●</span>}
-                                                                {preview}
-                                                            </span>
-                                                        </Link>
-                                                    </SidebarMenuButton>
-                                                </SidebarMenuItem>
+                                                        return (
+                                                            <SidebarMenuItem key={thread.id}>
+                                                                <SidebarMenuButton asChild className={isActive ? "bg-accent" : ""}>
+                                                                    <Link href={`/chat/${thread.id}`} className="flex flex-col items-start gap-1 py-3 h-auto">
+                                                                        <div className="flex items-center justify-between w-full">
+                                                                            <span className="truncate max-w-[160px] block font-medium text-sm">
+                                                                                {thread.title}
+                                                                            </span>
+                                                                            <span className="text-xs text-muted-foreground shrink-0">
+                                                                                {formatTime(thread.updatedAt)}
+                                                                            </span>
+                                                                        </div>
+                                                                    </Link>
+                                                                </SidebarMenuButton>
+                                                            </SidebarMenuItem>
+                                                        )
+                                                    })}
+                                                </Fragment>
                                             )
-                                        })}
+                                        ))}
 
                                         {/* Loading skeletons - only show on initial load */}
                                         {isLoading && sortedThreads.length === 0 && (

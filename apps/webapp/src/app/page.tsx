@@ -74,11 +74,6 @@ export default function HomePage() {
     const displayStatus = stream.status || initialStreamingStatus;
     const isConnected = stream.isConnected;
 
-    const handleSend = (message: string) => {
-        setShowChat(true);
-        sendMessage(message);
-    };
-
     const handleStartNewThread = () => {
         startNewThread();
         setShowChat(true);
@@ -324,12 +319,12 @@ export default function HomePage() {
                                                     </div>
                                                 </div>
                                             </div>
-                                                    {/* Show timestamp if the message is completed */}
-                                                    {displayStatus === 'complete' && currentStreamingMessage && (
-                                                        <div className="text-xs text-muted-foreground text-left mt-2 px-1">
-                                                            {formatTime(currentStreamingMessage.createdAt)}
-                                                        </div>
-                                                    )}
+                                            {/* Show timestamp if the message is completed */}
+                                            {displayStatus === 'complete' && currentStreamingMessage && (
+                                                <div className="text-xs text-muted-foreground text-left mt-2 px-1">
+                                                    {formatTime(currentStreamingMessage.createdAt)}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -360,18 +355,6 @@ export default function HomePage() {
                                         </div>
                                     </div>
                                 )}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Fixed Chat Input - Always visible when user is signed in */}
-                    {user && (
-                        <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center pointer-events-none">
-                            <div className="max-w-4xl w-full mx-auto pointer-events-auto p-4">
-                                <ChatInput
-                                    handleSend={handleSend}
-                                    isLoading={isLoading}
-                                />
                             </div>
                         </div>
                     )}

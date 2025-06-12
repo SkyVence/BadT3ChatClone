@@ -35,7 +35,7 @@ export async function POST(req: Request) {
             where: and(eq(userKeys.userId, session.user.id), eq(userKeys.provider, provider)),
         })
         if (!getApiKey) {
-            return new Response("API key not found", { status: 404 });
+            return new Response("API key not found", { status: 460 });
         }
         const apiKey = decrypt(getApiKey.hashedKey);
 
