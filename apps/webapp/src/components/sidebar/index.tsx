@@ -139,44 +139,55 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
                     <SidebarGroupContent className="flex-1">
                         <ScrollArea className="h-full">
                             <SidebarMenu>
-                                {threads.map((thread: getThreadsResponse["data"][0]) => {
-                                    return (
-                                        <SidebarMenuItem key={thread.id}>
-                                            <SidebarMenuButton asChild>
-                                                <Link href={`/chat?threadId=${thread.id}`}>
-                                                    <span className="truncate max-w-[250px] block">{thread.title}</span>
-                                                </Link>
-                                            </SidebarMenuButton>
-                                        </SidebarMenuItem>
-                                    )
-                                })}
-
-                                {isLoading && (
-                                    <Fragment>
-                                        {Array.from({ length: 15 }).map((_, index) => (
-                                            <SidebarMenuItem key={index}>
-                                                <SidebarMenuButton>
-                                                    <Skeleton className="w-full h-10" />
-                                                </SidebarMenuButton>
-                                            </SidebarMenuItem>
-                                        ))}
-                                    </Fragment>
-                                )}
-
-                                {threads.length === 0 && !isLoading && (
+                                {!user ? (
                                     <SidebarMenuItem>
                                         <SidebarMenuButton>
                                             <span className="text-muted-foreground">No chats yet</span>
                                         </SidebarMenuButton>
                                     </SidebarMenuItem>
-                                )}
+                                ) : (
+                                    <Fragment>
+                                        {threads.map((thread: getThreadsResponse["data"][0]) => {
+                                            return (
+                                                <SidebarMenuItem key={thread.id}>
+                                                    <SidebarMenuButton asChild>
+                                                        <Link href={`/chat?threadId=${thread.id}`}>
+                                                            <span className="truncate max-w-[210px] block">{thread.title}</span>
+                                                        </Link>
+                                                    </SidebarMenuButton>
+                                                </SidebarMenuItem>
+                                            )
+                                        })
+                                        }
 
-                                {isError && !isLoading && (
-                                    <SidebarMenuItem>
-                                        <SidebarMenuButton>
-                                            <span className="text-red-500">Error loading chats</span>
-                                        </SidebarMenuButton>
-                                    </SidebarMenuItem>
+                                        {isLoading && (
+                                            <Fragment>
+                                                {Array.from({ length: 15 }).map((_, index) => (
+                                                    <SidebarMenuItem key={index}>
+                                                        <SidebarMenuButton>
+                                                            <Skeleton className="w-full h-10" />
+                                                        </SidebarMenuButton>
+                                                    </SidebarMenuItem>
+                                                ))}
+                                            </Fragment>
+                                        )}
+
+                                        {threads.length === 0 && !isLoading && (
+                                            <SidebarMenuItem>
+                                                <SidebarMenuButton>
+                                                    <span className="text-muted-foreground">No chats yet</span>
+                                                </SidebarMenuButton>
+                                            </SidebarMenuItem>
+                                        )}
+
+                                        {isError && !isLoading && (
+                                            <SidebarMenuItem>
+                                                <SidebarMenuButton>
+                                                    <span className="text-red-500">Error loading chats</span>
+                                                </SidebarMenuButton>
+                                            </SidebarMenuItem>
+                                        )}
+                                    </Fragment>
                                 )}
                             </SidebarMenu>
                         </ScrollArea>

@@ -21,6 +21,7 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover"
+import { ModelSelector } from "../ui/model-selector"
 
 interface ChatInputProps {
     handleSend: (message: string) => void;
@@ -72,51 +73,7 @@ export function ChatInput({
                 {/* Bottom toolbar */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        {/* Model selector - Replaced Select with Combobox */}
-                        <Popover open={open} onOpenChange={setOpen}>
-                            <PopoverTrigger asChild>
-                                <Button
-                                    variant="ghost"
-                                    role="combobox"
-                                    aria-expanded={open}
-                                    className="w-auto justify-between bg-transparent border-none text-foreground hover:bg-accent focus:ring-0 focus:ring-offset-0 h-8 px-3"
-                                >
-                                    {selectedModel
-                                        ? models.find((model) => model.version === selectedModel)?.version
-                                        : "Select model..."}
-                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[200px] p-0 bg-popover border-border">
-                                <Command>
-                                    <CommandInput placeholder="Search models..." className="h-9" />
-                                    <CommandList>
-                                        <CommandEmpty>No model found.</CommandEmpty>
-                                        <CommandGroup>
-                                            {models.map((model) => (
-                                                <CommandItem
-                                                    key={model.version}
-                                                    value={model.version}
-                                                    onSelect={(currentValue) => {
-                                                        setSelectedModel(currentValue === selectedModel ? "" : currentValue)
-                                                        setOpen(false)
-                                                    }}
-                                                    className="text-popover-foreground focus:bg-accent focus:text-accent-foreground"
-                                                >
-                                                    <Check
-                                                        className={cn(
-                                                            "mr-2 h-4 w-4",
-                                                            selectedModel === model.version ? "opacity-100" : "opacity-0"
-                                                        )}
-                                                    />
-                                                    {model.name}
-                                                </CommandItem>
-                                            ))}
-                                        </CommandGroup>
-                                    </CommandList>
-                                </Command>
-                            </PopoverContent>
-                        </Popover>
+                        <ModelSelector selectedModel={selectedModel} onSelectModel={setSelectedModel} />
 
                         {/* Conditional Search button */}
                         {getCurrentModelCapabilities().search && (
