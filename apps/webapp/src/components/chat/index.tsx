@@ -6,22 +6,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/chat/textarea-chat"
 import { Globe, Paperclip, ArrowUp, ChevronDown, Check, ChevronsUpDown } from "lucide-react"
-import { models } from "@/models"
-import { cn } from "@/lib/utils"
-import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
-    CommandList,
-} from "@/components/ui/command"
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover"
-import { ModelSelector } from "../ui/model-selector"
+import { ModelSelector, models } from "../ui/model-selector"
 
 interface ChatInputProps {
     handleSend: (message: string) => void;
@@ -52,8 +37,8 @@ export function ChatInput({
     }
 
     const getCurrentModelCapabilities = () => {
-        const model = models.find((m) => m.version === selectedModel)
-        return model?.capabilities || { search: false, attach: false }
+        const model = models.find((m) => m.id === selectedModel)
+        return model?.features || []
     }
 
     return (
@@ -76,7 +61,7 @@ export function ChatInput({
                         <ModelSelector selectedModel={selectedModel} onSelectModel={setSelectedModel} />
 
                         {/* Conditional Search button */}
-                        {getCurrentModelCapabilities().search && (
+                        {getCurrentModelCapabilities().includes("web") && (
                             <Button
                                 variant="ghost"
                                 size="sm"
@@ -88,7 +73,7 @@ export function ChatInput({
                         )}
 
                         {/* Conditional Attach button */}
-                        {getCurrentModelCapabilities().attach && (
+                        {getCurrentModelCapabilities().includes("files") && (
                             <Button
                                 variant="ghost"
                                 size="sm"

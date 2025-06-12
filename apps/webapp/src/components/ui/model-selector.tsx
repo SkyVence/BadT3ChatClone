@@ -42,7 +42,7 @@ interface ModelInfo {
 }
 
 // Sample model data matching the interface
-const models: ModelInfo[] = [
+export const models: ModelInfo[] = [
     {
         id: "gemini-2.5-flash",
         name: "Gemini\n2.5 Flash",
