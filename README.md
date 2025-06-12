@@ -17,7 +17,7 @@ Currently support only bring your own key, those keys are stored in a db and enc
 - **shadcn/ui** – Reusable UI components
 - **Drizzle ORM** – TypeScript-first database access
 - **PostgreSQL** – Reliable, scalable database
-- **Turborepo** – Monorepo build system - Only using it because i can run script in one terminal window
+- **Turborepo** – Monorepo build system - Only using it because i can run script in one terminal window (Small laptop screen)
 - **BetterAuth** - Authentication library - Social provider Github already setup
 
 ---
@@ -43,7 +43,7 @@ Currently support only bring your own key, those keys are stored in a db and enc
 ```text
 fast-chatapp/
 ├── apps/
-│   └── server/      # Backend API (Next.js, tRPC)
+│   └── webapp/      # Fullapp
 ```
 
 ---
@@ -56,7 +56,7 @@ fast-chatapp/
    ```
 2. **Configure your database**
    - Set up PostgreSQL
-   - Update `apps/server/.env` with your DB credentials
+   - Update `apps/webapp/.env` with your DB credentials
 3. **Apply the schema**
    ```bash
    pnpm db:push
@@ -72,15 +72,13 @@ fast-chatapp/
 
 ## 📦 Scripts
 
-| Script             | Description                |
-| ------------------ | -------------------------- |
-| `pnpm dev`         | Start all apps in dev mode |
-| `pnpm build`       | Build all apps             |
-| `pnpm dev:web`     | Start only the web app     |
-| `pnpm dev:server`  | Start only the server      |
-| `pnpm check-types` | Type check                 |
-| `pnpm db:push`     | Push schema to DB          |
-| `pnpm db:studio`   | Open DB studio UI          |
+| Script             | Description                              |
+| ------------------ | ---------------------------------------- |
+| `pnpm dev`         | Start webapp in dev mode + drizzle stuio |
+| `pnpm build`       | Build all apps                           |
+| `pnpm check-types` | Type check                               |
+| `pnpm db:push`     | Push schema to DB                        |
+| `pnpm db:studio`   | Open DB studio UI                        |
 
 ---
 
