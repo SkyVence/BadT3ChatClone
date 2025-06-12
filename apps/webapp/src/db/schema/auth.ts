@@ -2,6 +2,7 @@ import { relations } from "drizzle-orm";
 import { pgTable, text, timestamp, boolean, uuid } from "drizzle-orm/pg-core";
 import { threads } from "./threads";
 import { attachments } from "./attachment";
+import { providerEnum } from "./enum";
 
 export const user = pgTable("user", {
     id: text("id").primaryKey(),
@@ -16,7 +17,7 @@ export const user = pgTable("user", {
 export const userKeys = pgTable("user_keys", {
     id: uuid("id").primaryKey().defaultRandom(),
     userId: text("user_id").references(() => user.id),
-    provider: text("provider").notNull(),
+    provider: providerEnum("provider").notNull(),
     hashedKey: text("hashed_key").notNull(),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),

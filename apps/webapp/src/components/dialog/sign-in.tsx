@@ -1,7 +1,7 @@
 import { Dialog, DialogHeader, DialogContent, DialogTitle, DialogDescription } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { GithubIcon, Loader2 } from "lucide-react";
-import { useAuth } from "../provider/context";
+import { useAuth } from "../../context/auth";
 import { Fragment, useState } from "react";
 
 export function SignInDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {

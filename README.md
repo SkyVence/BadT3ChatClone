@@ -1,66 +1,93 @@
-# fast-chatapp
+# 🚀 fast-chatapp
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines , Next, TRPC, and more.
+My attempt to build a t3chat clone for the t3 cloneathon.
+I used v0 for the ui with some small touch up on something. Nowhere near a good ui but you know...
+I learned a bit about SSE so i tried my hand at making resumeable streams. It's working but sometimes it takes time to connect.
 
-## Features
+Currently support only bring your own key, those keys are stored in a db and encrypted until used to create the actual ai sdk client for the provider. I plan on making local-storage api key support maybe before the end of the challenge.
 
-- **TypeScript** - For type safety and improved developer experience
-- **TailwindCSS** - Utility-first CSS for rapid UI development
-- **shadcn/ui** - Reusable UI components
-- **Next.js** - Full-stack React framework
-- **tRPC** - End-to-end type-safe APIs
-- **Node.js** - Runtime environment
-- **Drizzle** - TypeScript-first ORM
-- **PostgreSQL** - Database engine
-- **Authentication** - Email & password authentication with Better Auth
-- **Turborepo** - Optimized monorepo build system
+---
 
-## Getting Started
+## ✨ Features
 
-First, install the dependencies:
+- **TypeScript** – End-to-end type safety
+- **Next.js** – Full-stack React framework
+- **tRPC** – Type-safe APIs, no codegen
+- **TailwindCSS** – Rapid UI development
+- **shadcn/ui** – Reusable UI components
+- **Drizzle ORM** – TypeScript-first database access
+- **PostgreSQL** – Reliable, scalable database
+- **Turborepo** – Monorepo build system - Only using it because i can run script in one terminal window (Small laptop screen)
+- **BetterAuth** - Authentication library - Social provider Github already setup
 
-```bash
-pnpm install
-```
-## Database Setup
+---
 
-This project uses PostgreSQL with Drizzle ORM.
+## AI Provider
 
-1. Make sure you have a PostgreSQL database set up.
-2. Update your `apps/server/.env` file with your PostgreSQL connection details.
+- **OpenAI** - All text model are supported for now - Do not try gpt-image-1 since i don't support image currently - No vision support or text upload
+- **Google** - All text model are supported for now - No vision, text upload, ground search
+- **Anthropic** - No vision, text upload
 
-3. Apply the schema to your database:
-```bash
-pnpm db:push
-```
+---
 
+## 🛠️ Work in Progress
 
-Then, run the development server:
+- 🖍️ **Text Highlighting** – Highlight and annotate messages in chat
+- 📎 **File Upload** – Share files directly in chat conversations
+- 🚧 **More features coming soon!**
 
-```bash
-pnpm dev
-```
+---
 
+## 🏗️ Project Structure
 
-
-The API is running at [http://localhost:3000](http://localhost:3000).
-
-
-
-## Project Structure
-
-```
+```text
 fast-chatapp/
 ├── apps/
-│   └── server/      # Backend API (Next, TRPC)
+│   └── webapp/      # Fullapp
 ```
 
-## Available Scripts
+---
 
-- `pnpm dev`: Start all applications in development mode
-- `pnpm build`: Build all applications
-- `pnpm dev:web`: Start only the web application
-- `pnpm dev:server`: Start only the server
-- `pnpm check-types`: Check TypeScript types across all apps
-- `pnpm db:push`: Push schema changes to database
-- `pnpm db:studio`: Open database studio UI
+## 📝 Getting Started
+
+1. **Install dependencies**
+   ```bash
+   pnpm install
+   ```
+2. **Configure your database**
+   - Set up PostgreSQL
+   - Update `apps/webapp/.env` with your DB credentials
+3. **Apply the schema**
+   ```bash
+   pnpm db:push
+   ```
+4. **Run the development server**
+   ```bash
+   pnpm dev
+   ```
+
+> The app will be available at [http://localhost:3000](http://localhost:3000).
+
+---
+
+## 📦 Scripts
+
+| Script             | Description                              |
+| ------------------ | ---------------------------------------- |
+| `pnpm dev`         | Start webapp in dev mode + drizzle studio |
+| `pnpm build`       | Build all apps                           |
+| `pnpm check-types` | Type check                               |
+| `pnpm db:push`     | Push schema to DB                        |
+| `pnpm db:studio`   | Open DB studio UI                        |
+
+---
+
+## 🤝 Contributing
+
+Pull requests and issues are welcome! For major changes, please open an issue first to discuss what you would like to change.
+
+---
+
+## 📄 License
+
+[MIT](LICENSE)

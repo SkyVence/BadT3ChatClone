@@ -1,67 +1,57 @@
-import { trpc } from "@/utils/trpc";
-import { useSubscription } from "@trpc/tanstack-react-query";
-import { Fragment, useEffect, useState } from "react";
-import { ChatMessages, SidebarApp } from "./sidebar";
+import { Fragment, useState } from "react";
+import { SidebarApp } from "./sidebar";
 import { SidebarInset, SidebarTrigger } from "./ui/sidebar";
-import { ChatInput } from "./chat";
+import { ChatInput } from "./chat/index";
 import { SignInDialog } from "./dialog/sign-in";
+import { useStreamer } from "@/context/chat";
+import { Toaster } from "@/components/ui/sonner";
 
-export function AppContent({ children }: { children: React.ReactNode }) {
+interface StreamingMessageData {
+    id: string;
+    content: string;
+    isStreaming: boolean;
+}
+
+function ChatContent({ children }: { children: React.ReactNode }) {
     const [open, setOpen] = useState(false);
-    const [messages, setMessages] = useState<string[]>([]);
-    const [currentPrompt, setCurrentPrompt] = useState<string>("");
-    const [isActive, setIsActive] = useState(false);
+    const { sendMessage, isLoading, model } = useStreamer();
 
-    // Move useSubscription to component level using your original approach
-    const chatMutation = useSubscription(trpc.ai.chatv2.subscriptionOptions({
-        provider: "anthropic",
-        model: "claude-3-7-sonnet-20250219",
-        prompt: currentPrompt,
-    }))
-
-    // Handle the streaming data when it arrives
-    useEffect(() => {
-        if (chatMutation.data && isActive) {
-            setMessages(prev => {
-                const newMessages = [...prev];
-                if (newMessages.length > 0) {
-                    // Append to the last message (AI response)
-                    newMessages[newMessages.length - 1] += chatMutation.data;
-                }
-                return newMessages;
-            });
+    function handleSend(message: string) {
+        if (model) {
+            sendMessage(message, model.version);
         }
-    }, [chatMutation.data, isActive]);
-
-    const handleSend = (message: string) => {
-        if (!message.trim()) return;
-
-        // Add user message to chat
-        setMessages(prev => [...prev, `User: ${message}`]);
-
-        // Add placeholder for AI response
-        setMessages(prev => [...prev, "AI: "]);
-
-        // Trigger the subscription with the new message
-        setCurrentPrompt(message);
-        setIsActive(true);
-    };
+    }
 
     return (
         <Fragment>
+            <Toaster />
             <SidebarApp setOpen={setOpen} />
             <SidebarTrigger className="fixed top-4 left-4 z-[9999] size-8" />
-            <SidebarInset>
-                <main className="flex-1 pb-24">
-                    {children}
-                </main>
+            <SidebarInset className="flex flex-col h-screen overflow-hidden">
+                {/* Main content area that scrolls within sidebar inset */}
+                <div className="flex-1 overflow-y-auto">
+                    <div className="max-w-4xl w-full mx-auto p-4 pb-[140px] min-h-full">
+                        <main>
+                            {children}
+                        </main>
+                    </div>
+                </div>
 
-                <div className="w-full max-w-4xl mx-auto border-x border-t border-border rounded-t-xl bg-background">
-                    <ChatMessages messages={messages} />
-                    <ChatInput handleSend={handleSend} />
+                {/* Chat input fixed to bottom of sidebar inset */}
+                <div className="absolute inset-x-0 bottom-0 z-50 flex justify-center pointer-events-none">
+                    <div className="max-w-4xl w-full mx-auto pointer-events-auto p-4">
+                        <ChatInput
+                            handleSend={handleSend}
+                            isLoading={isLoading}
+                        />
+                    </div>
                 </div>
             </SidebarInset>
             <SignInDialog open={open} onOpenChange={setOpen} />
         </Fragment >
     )
+}
+
+export function AppContent({ children }: { children: React.ReactNode }) {
+    return <ChatContent>{children}</ChatContent>;
 }
