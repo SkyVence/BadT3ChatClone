@@ -42,6 +42,7 @@ interface StreamerContextType {
     setThreadId: (id: string | null) => void;
     sendMessage: (prompt: string, modelVersion?: string) => void;
     startNewThread: () => void;
+    clearMessageId: () => void;
     messages: Message[];
     isMessagesLoading: boolean;
     refetchMessages: () => void;
@@ -75,6 +76,7 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
         onError: (err: any) => {
             setError(String(err));
             setIsLoading(false);
+            setMessageId(null); // Clear messageId on error
         },
     });
 
@@ -86,6 +88,9 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
 
     const sendMessage = useCallback((prompt: string, modelVersion?: string) => {
         if (!prompt.trim()) return;
+        
+        // Clear any existing messageId before sending new message
+        setMessageId(null);
         setIsLoading(true);
         setError(null);
 
@@ -104,6 +109,10 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
         setError(null);
     }, []);
 
+    const clearMessageId = useCallback(() => {
+        setMessageId(null);
+    }, []);
+
     return (
         <StreamerContext.Provider value={{ 
             messageId, 
@@ -113,6 +122,7 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
             setThreadId, 
             sendMessage, 
             startNewThread,
+            clearMessageId,
             messages, 
             isMessagesLoading,
             refetchMessages

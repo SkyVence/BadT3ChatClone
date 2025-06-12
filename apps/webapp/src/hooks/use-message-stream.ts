@@ -38,6 +38,7 @@ export function useMessageStream({
     const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const heartbeatTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const visibilityChangeHandlerRef = useRef<(() => void) | null>(null);
+    const completionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Debug: Track connection status changes
     useEffect(() => {
@@ -54,7 +55,7 @@ export function useMessageStream({
         }
         
         // Clear all timeouts
-        [retryTimeoutRef, connectionTimeoutRef, heartbeatTimeoutRef].forEach(ref => {
+        [retryTimeoutRef, connectionTimeoutRef, heartbeatTimeoutRef, completionTimeoutRef].forEach(ref => {
             if (ref.current) {
                 clearTimeout(ref.current);
                 ref.current = null;
@@ -112,8 +113,8 @@ export function useMessageStream({
         isConnectingRef.current = true;
 
         try {
-            // Add timestamp to prevent caching issues
-            const url = `/api/chat/stream/subscribe/${messageId}?t=${Date.now()}`;
+            // Add timestamp and random parameter to prevent caching issues
+            const url = `/api/chat/stream/subscribe/${messageId}?t=${Date.now()}&r=${Math.random()}`;
             const eventSource = new EventSource(url);
             eventSourceRef.current = eventSource;
 
@@ -145,7 +146,7 @@ export function useMessageStream({
                 }
                 heartbeatTimeoutRef.current = setTimeout(() => {
                     if (isConnected) {
-                        console.log(`[useMessageStream] � Heartbeat timeout, checking connection for ${messageId}`);
+                        console.log(`[useMessageStream] 💓 Heartbeat timeout, checking connection for ${messageId}`);
                         // Check if connection is actually still alive
                         if (eventSource.readyState !== EventSource.OPEN) {
                             setIsConnected(false);
@@ -206,7 +207,12 @@ export function useMessageStream({
                             console.log(`[useMessageStream] 🏁 Stream complete for ${messageId}`);
                             setContent(data.fullContent || '');
                             setStatus('complete');
-                            onComplete?.(data.fullContent || '');
+                            
+                            // Call completion callback after a small delay to ensure state is set
+                            completionTimeoutRef.current = setTimeout(() => {
+                                onComplete?.(data.fullContent || '');
+                            }, 100);
+                            
                             cleanup();
                             break;
 
@@ -214,7 +220,12 @@ export function useMessageStream({
                             console.log(`[useMessageStream] 💥 Stream error for ${messageId}`);
                             setStatus('error');
                             setError(data.error || 'Unknown error');
-                            onError?.(data.error || 'Unknown error');
+                            
+                            // Call error callback after a small delay to ensure state is set
+                            completionTimeoutRef.current = setTimeout(() => {
+                                onError?.(data.error || 'Unknown error');
+                            }, 100);
+                            
                             cleanup();
                             break;
                     }

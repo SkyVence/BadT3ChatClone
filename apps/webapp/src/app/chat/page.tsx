@@ -13,7 +13,7 @@ function formatTime(dateString: string) {
 }
 
 export default function ChatPage({ children }: { children?: React.ReactNode }) {
-    const { messageId, setThreadId, messages, isMessagesLoading } = useStreamer();
+    const { messageId, setThreadId, messages, isMessagesLoading, clearMessageId } = useStreamer();
     const searchParams = useSearchParams();
     const threadId = searchParams.get("threadId");
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -29,12 +29,18 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
         }
     }, [messages, isMessagesLoading, messageId]);
 
-    // Streaming logic
+    // Streaming logic with proper completion handling
     const stream = useMessageStream({
         messageId: messageId || "",
         initialStatus: "streaming",
-        onComplete: () => { },
-        onError: () => { },
+        onComplete: (fullContent) => {
+            console.log('Stream completed, clearing messageId');
+            clearMessageId(); // Clear messageId when stream completes
+        },
+        onError: (error) => {
+            console.log('Stream error, clearing messageId');
+            clearMessageId(); // Clear messageId on error
+        },
     });
     const displayContent = stream.content;
     const displayStatus = stream.status;
@@ -61,7 +67,8 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                         </div>
                     </div>
                 ) : (
-                    messages.slice().reverse().map((msg) => (
+                    // Display messages in chronological order (oldest to newest)
+                    messages.map((msg) => (
                         <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             {msg.role === 'user' ? (
                                 // User message with bubble
@@ -94,7 +101,7 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                     ))
                 )}
                 
-                {/* Streaming message bubble */}
+                {/* Streaming message bubble - appears after the last message */}
                 {messageId && displayContent && (
                     <div className="flex justify-start">
                         <div className="max-w-[85%] lg:max-w-[75%]">

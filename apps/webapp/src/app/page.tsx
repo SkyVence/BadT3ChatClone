@@ -18,7 +18,7 @@ function formatTime(dateString: string) {
 
 export default function HomePage() {
     const { user } = useAuth();
-    const { messageId, sendMessage, isLoading, messages, threadId, startNewThread } = useStreamer();
+    const { messageId, sendMessage, isLoading, messages, threadId, startNewThread, clearMessageId } = useStreamer();
     const [open, setOpen] = useState(false);
     const [showChat, setShowChat] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -38,12 +38,18 @@ export default function HomePage() {
         }
     }, [threadId, messages.length, router]);
 
-    // Streaming logic for homepage
+    // Streaming logic for homepage with proper completion handling
     const stream = useMessageStream({
         messageId: messageId || "",
         initialStatus: "streaming",
-        onComplete: () => { },
-        onError: () => { },
+        onComplete: (fullContent) => {
+            console.log('Homepage stream completed, clearing messageId');
+            clearMessageId(); // Clear messageId when stream completes
+        },
+        onError: (error) => {
+            console.log('Homepage stream error, clearing messageId');
+            clearMessageId(); // Clear messageId on error
+        },
     });
     const displayContent = stream.content;
     const displayStatus = stream.status;
@@ -245,7 +251,8 @@ export default function HomePage() {
                                         </div>
                                     </div>
                                 ) : (
-                                    messages.slice().reverse().map((msg) => (
+                                    // Display messages in chronological order (oldest to newest)
+                                    messages.map((msg) => (
                                         <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                             {msg.role === 'user' ? (
                                                 // User message with bubble
@@ -278,7 +285,7 @@ export default function HomePage() {
                                     ))
                                 )}
                                 
-                                {/* Streaming message bubble */}
+                                {/* Streaming message bubble - appears after the last message */}
                                 {messageId && displayContent && (
                                     <div className="flex justify-start">
                                         <div className="max-w-[85%] lg:max-w-[75%]">

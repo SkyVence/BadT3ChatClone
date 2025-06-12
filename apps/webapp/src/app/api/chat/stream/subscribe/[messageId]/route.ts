@@ -5,11 +5,15 @@ import { db } from '@/db';
 import { messages } from '@/db/schema/threads';
 import { eq } from 'drizzle-orm';
 
-// Store active connections per message to manage cleanup
-const activeConnections = new Map<string, Set<string>>();
+// Store active connections per message per user to manage cleanup and prevent interference
+const activeConnections = new Map<string, Map<string, Set<string>>>();
 
 function generateConnectionId(): string {
     return `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+function getConnectionKey(messageId: string, userId: string): string {
+    return `${messageId}:${userId}`;
 }
 
 export async function GET(
@@ -27,7 +31,9 @@ export async function GET(
         }
 
         const { messageId } = await params;
+        const userId = session.user.id;
         const connectionId = generateConnectionId();
+        const connectionKey = getConnectionKey(messageId, userId);
 
         // Verify message exists and user has access
         const message = await db.query.messages.findFirst({
@@ -41,24 +47,29 @@ export async function GET(
             return new Response('Message not found', { status: 404 });
         }
 
-        if (message.thread.userId !== session.user.id) {
+        if (message.thread.userId !== userId) {
             return new Response('Message not found', { status: 404 });
         }
 
         console.log('SSE: New connection for message', {
             messageId: message.id,
             connectionId,
+            userId,
+            connectionKey,
             status: message.status,
             contentLength: message.content?.length || 0,
-            role: message.role,
-            userId: session.user.id
+            role: message.role
         });
 
-        // Track this connection
+        // Track this connection per user
         if (!activeConnections.has(messageId)) {
-            activeConnections.set(messageId, new Set());
+            activeConnections.set(messageId, new Map());
         }
-        activeConnections.get(messageId)!.add(connectionId);
+        const messageConnections = activeConnections.get(messageId)!;
+        if (!messageConnections.has(userId)) {
+            messageConnections.set(userId, new Set());
+        }
+        messageConnections.get(userId)!.add(connectionId);
 
         // Create SSE stream
         const stream = new ReadableStream({
@@ -74,21 +85,21 @@ export async function GET(
                 const sendHeartbeat = () => {
                     if (isCleanedUp) return;
                     try {
-                        const heartbeatData = `: heartbeat ${Date.now()}\n\n`;
+                        const heartbeatData = `: heartbeat ${Date.now()} user:${userId} conn:${connectionId}\n\n`;
                         controller.enqueue(encoder.encode(heartbeatData));
-                        console.log(`SSE: Heartbeat sent for ${messageId}:${connectionId}`);
+                        console.log(`SSE: Heartbeat sent for ${connectionKey}:${connectionId}`);
                     } catch (error) {
-                        console.log(`SSE: Error sending heartbeat for ${messageId}:${connectionId}`, error);
+                        console.log(`SSE: Error sending heartbeat for ${connectionKey}:${connectionId}`, error);
                         cleanup();
                     }
                 };
 
-                // Enhanced cleanup function
+                // Enhanced cleanup function with user isolation
                 const cleanup = () => {
                     if (isCleanedUp) return;
                     isCleanedUp = true;
 
-                    console.log(`SSE: Cleaning up connection ${connectionId} for message ${messageId}`);
+                    console.log(`SSE: Cleaning up connection ${connectionId} for ${connectionKey}`);
 
                     // Clear heartbeat
                     if (heartbeatInterval) {
@@ -97,10 +108,17 @@ export async function GET(
                     }
 
                     // Remove connection from tracking
-                    const connections = activeConnections.get(messageId);
-                    if (connections) {
-                        connections.delete(connectionId);
-                        if (connections.size === 0) {
+                    const messageConnections = activeConnections.get(messageId);
+                    if (messageConnections) {
+                        const userConnections = messageConnections.get(userId);
+                        if (userConnections) {
+                            userConnections.delete(connectionId);
+                            if (userConnections.size === 0) {
+                                messageConnections.delete(userId);
+                                console.log(`SSE: No more connections for user ${userId} on message ${messageId}`);
+                            }
+                        }
+                        if (messageConnections.size === 0) {
                             activeConnections.delete(messageId);
                             console.log(`SSE: No more connections for message ${messageId}, removing from tracking`);
                         }
@@ -116,7 +134,7 @@ export async function GET(
                         errorHandler = null;
                     }
 
-                    // Unsubscribe from Redis channel if no more connections
+                    // Unsubscribe from Redis channel only if no more connections for this message
                     const remainingConnections = activeConnections.get(messageId);
                     if (!remainingConnections || remainingConnections.size === 0) {
                         subscriber.unsubscribe(channel).catch((error) => {
@@ -136,10 +154,11 @@ export async function GET(
                         fullContent: message.content,
                         status: message.status,
                         messageId: message.id,
-                        connectionId, // Add connection ID for debugging
+                        connectionId,
+                        userId, // Add userId for debugging
                     });
                     controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-                    console.log(`SSE: Initial data sent for ${messageId}:${connectionId}`);
+                    console.log(`SSE: Initial data sent for ${connectionKey}:${connectionId}`);
                 }
 
                 // If message is already complete or error, send final status and close
@@ -150,35 +169,38 @@ export async function GET(
                         error: message.error,
                         messageId: message.id,
                         connectionId,
+                        userId,
                     });
                     controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-                    console.log(`SSE: Final status sent for ${messageId}:${connectionId}, closing connection`);
+                    console.log(`SSE: Final status sent for ${connectionKey}:${connectionId}, closing connection`);
 
                     cleanup();
                     controller.close();
                     return;
                 }
 
-                // Set up Redis message handler
+                // Set up Redis message handler - filter messages to prevent interference
                 messageHandler = (receivedChannel: string, data: string) => {
                     if (isCleanedUp) return;
                     if (receivedChannel === channel) {
                         try {
                             const parsedData = JSON.parse(data);
-                            // Add connection ID for debugging
+                            // Add connection and user info for debugging
                             parsedData.connectionId = connectionId;
+                            parsedData.userId = userId;
+                            
                             const messageData = JSON.stringify(parsedData);
                             controller.enqueue(encoder.encode(`data: ${messageData}\n\n`));
-                            console.log(`SSE: Redis message forwarded for ${messageId}:${connectionId}, type: ${parsedData.type}`);
+                            console.log(`SSE: Redis message forwarded for ${connectionKey}:${connectionId}, type: ${parsedData.type}`);
 
                             // Close stream if complete or error
                             if (parsedData.type === 'complete' || parsedData.type === 'error') {
-                                console.log(`SSE: Stream completed for ${messageId}:${connectionId}`);
+                                console.log(`SSE: Stream completed for ${connectionKey}:${connectionId}`);
                                 cleanup();
                                 controller.close();
                             }
                         } catch (error) {
-                            console.error(`SSE: Error parsing Redis message for ${messageId}:${connectionId}:`, error);
+                            console.error(`SSE: Error parsing Redis message for ${connectionKey}:${connectionId}:`, error);
                         }
                     }
                 };
@@ -186,12 +208,12 @@ export async function GET(
                 // Set up Redis error handler
                 errorHandler = (error: any) => {
                     if (isCleanedUp) return;
-                    console.error(`SSE: Redis subscriber error for ${messageId}:${connectionId}:`, error);
+                    console.error(`SSE: Redis subscriber error for ${connectionKey}:${connectionId}:`, error);
                     cleanup();
                     try {
                         controller.close();
                     } catch (closeError) {
-                        console.log(`SSE: Error closing controller for ${messageId}:${connectionId}:`, closeError);
+                        console.log(`SSE: Error closing controller for ${connectionKey}:${connectionId}:`, closeError);
                     }
                 };
 
@@ -201,9 +223,9 @@ export async function GET(
 
                 // Subscribe to the Redis channel
                 subscriber.subscribe(channel).then(() => {
-                    console.log(`SSE: Subscribed to Redis channel: ${channel} for connection ${connectionId}`);
+                    console.log(`SSE: Subscribed to Redis channel: ${channel} for connection ${connectionKey}:${connectionId}`);
                 }).catch((error: any) => {
-                    console.error(`SSE: Redis subscription error for ${messageId}:${connectionId}:`, error);
+                    console.error(`SSE: Redis subscription error for ${connectionKey}:${connectionId}:`, error);
                     cleanup();
                     try {
                         controller.close();
@@ -214,7 +236,7 @@ export async function GET(
 
                 // Handle client disconnect
                 const handleDisconnect = () => {
-                    console.log(`SSE: Client disconnected for ${messageId}:${connectionId}`);
+                    console.log(`SSE: Client disconnected for ${connectionKey}:${connectionId}`);
                     cleanup();
                 };
 
@@ -226,7 +248,7 @@ export async function GET(
             },
 
             cancel() {
-                console.log(`SSE: Stream cancelled for ${messageId}:${connectionId}`);
+                console.log(`SSE: Stream cancelled for ${connectionKey}:${connectionId}`);
                 // Cleanup when stream is cancelled
                 if ((this as any).cleanup) {
                     (this as any).cleanup();
@@ -244,6 +266,7 @@ export async function GET(
                 'Access-Control-Allow-Headers': 'Cache-Control, Authorization',
                 'X-Accel-Buffering': 'no', // Disable nginx buffering
                 'X-Connection-Id': connectionId, // Add connection ID to headers for debugging
+                'X-User-Id': userId, // Add user ID for debugging
             },
         });
 
