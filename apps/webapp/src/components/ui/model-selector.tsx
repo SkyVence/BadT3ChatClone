@@ -47,7 +47,7 @@ const models: ModelInfo[] = [
         id: "gemini-2.5-flash",
         name: "Gemini\n2.5 Flash",
         provider: "Google",
-        providerIcon: <SiGoogle className="text-base" />,
+        providerIcon: <SiGoogle />,
         features: ["vision", "web", "files"],
         isFavorite: true,
         color: "text-primary",
