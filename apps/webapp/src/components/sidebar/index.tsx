@@ -58,6 +58,7 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
         initialPageParam: 0,
     });
     const threads = data?.pages.flatMap(page => page.data) ?? [];
+    console.log(threads)
 
     // IntersectionObserver for infinite scroll
     useEffect(() => {
@@ -66,6 +67,7 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
         const observer = new IntersectionObserver(
             (entries) => {
                 if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+
                     fetchNextPage();
                 }
             },
