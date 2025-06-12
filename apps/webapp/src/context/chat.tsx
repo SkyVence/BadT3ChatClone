@@ -2,6 +2,8 @@
 
 import { models } from '@/models';
 import { api } from '@/trpc/react';
+import { useTRPCErrorHandler } from '@/hooks/use-trpc-error-handler';
+import { toastUtils } from '@/lib/toast';
 import { createContext, useCallback, useContext, useState, useEffect, type ReactNode } from "react";
 
 interface Message {
@@ -63,6 +65,7 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
     const [optimisticMessage, setOptimisticMessage] = useState<Message | null>(null);
 
     const utils = api.useUtils();
+    const { handleStreamError } = useTRPCErrorHandler();
 
     const sendMessageMutation = api.chat.sendMessageAndStartStream.useMutation({
         onSuccess: (data: any) => {
@@ -85,17 +88,30 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
                 utils.threads.getThreads.invalidate();
             }
         },
-        onError: (err: any) => {
-            setError(String(err));
+        onError: (error) => {
+            console.error('Send message error:', error);
+            handleStreamError(error);
             setIsLoading(false);
             setMessageId(null);
             setOptimisticMessage(null); // Clear optimistic message on error
+            setError(null); // Error is handled by toast, don't store it locally
         },
     });
 
-    const { data: threadData, isLoading: isMessagesLoading, refetch: refetchMessages } = api.threads.threadContext.useQuery({ threadId: threadId! }, {
-        enabled: !!threadId,
-    });
+    const { data: threadData, isLoading: isMessagesLoading, refetch: refetchMessages, error: threadError } = api.threads.threadContext.useQuery(
+        { threadId: threadId! }, 
+        {
+            enabled: !!threadId,
+        }
+    );
+
+    // Handle thread query errors
+    useEffect(() => {
+        if (threadError && threadId) {
+            console.error('Thread context error:', threadError);
+            handleStreamError(threadError);
+        }
+    }, [threadError, threadId, handleStreamError]);
 
     // Get messages from server and merge with optimistic message, then sort properly
     const serverMessages: Message[] = threadData?.data?.messages || [];
@@ -132,7 +148,10 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
     }, [serverMessages, isMessagesLoading, messageId]);
 
     const sendMessage = useCallback((prompt: string, modelVersion?: string) => {
-        if (!prompt.trim()) return;
+        if (!prompt.trim()) {
+            toastUtils.warning("Please enter a message");
+            return;
+        }
 
         // Clear any existing messageId before sending new message
         setMessageId(null);
@@ -156,6 +175,14 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
         setOptimisticMessage(optimisticUserMessage);
 
         const selectedModel = models.find((m) => m.version === modelVersion) || models[0];
+        
+        if (!selectedModel) {
+            toastUtils.error("No valid model selected");
+            setIsLoading(false);
+            setOptimisticMessage(null);
+            return;
+        }
+
         sendMessageMutation.mutate({
             threadId: threadId || undefined, // Send undefined for new threads
             prompt,
