@@ -38,10 +38,22 @@ export default function HomePage() {
         }
     }, [threadId, messages.length, router]);
 
-    // Streaming logic for homepage with proper completion handling
+    // Show chat if there are messages or if we have a messageId (resuming)
+    useEffect(() => {
+        if ((messages.length > 0 || messageId) && !showChat) {
+            setShowChat(true);
+        }
+    }, [messages.length, messageId, showChat]);
+
+    // Get the current streaming message details for initial content
+    const currentStreamingMessage = messageId ? messages.find(msg => msg.id === messageId) : null;
+    const initialStreamingContent = currentStreamingMessage?.content || '';
+    const initialStreamingStatus = currentStreamingMessage?.status as 'streaming' | 'complete' | 'error' || 'streaming';
+
+    // Streaming logic for homepage with proper completion handling and resumption
     const stream = useMessageStream({
         messageId: messageId || "",
-        initialStatus: "streaming",
+        initialStatus: initialStreamingStatus,
         onComplete: (fullContent) => {
             console.log('Homepage stream completed, clearing messageId');
             clearMessageId(); // Clear messageId when stream completes
@@ -51,8 +63,10 @@ export default function HomePage() {
             clearMessageId(); // Clear messageId on error
         },
     });
-    const displayContent = stream.content;
-    const displayStatus = stream.status;
+    
+    // Use the stream content if available, otherwise fall back to the message content
+    const displayContent = stream.content || initialStreamingContent;
+    const displayStatus = stream.status || initialStreamingStatus;
     const isConnected = stream.isConnected;
 
     const handleSend = (message: string) => {
@@ -226,8 +240,12 @@ export default function HomePage() {
                             <div className="border-b border-border p-4">
                                 <div className="max-w-4xl mx-auto flex items-center justify-between">
                                     <div>
-                                        <h1 className="text-lg font-semibold">New Conversation</h1>
-                                        <p className="text-sm text-muted-foreground">Ask me anything to get started</p>
+                                        <h1 className="text-lg font-semibold">
+                                            {threadId ? 'Continue Conversation' : 'New Conversation'}
+                                        </h1>
+                                        <p className="text-sm text-muted-foreground">
+                                            {messageId ? 'Resuming streaming...' : 'Ask me anything to get started'}
+                                        </p>
                                     </div>
                                     <Button 
                                         variant="outline" 
@@ -269,23 +287,28 @@ export default function HomePage() {
                                             ) : (
                                                 // Assistant message without bubble
                                                 <div className="max-w-[85%] lg:max-w-[75%]">
-                                                    <div className="text-foreground">
-                                                        <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
-                                                            <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                                                                {msg.content}
+                                                    {/* Don't render the content if this message is currently streaming - let the streaming component handle it */}
+                                                    {msg.id === messageId ? null : (
+                                                        <>
+                                                            <div className="text-foreground">
+                                                                <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
+                                                                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                                                                        {msg.content}
+                                                                    </div>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-xs text-muted-foreground text-left mt-2 px-1">
-                                                        {formatTime(msg.createdAt)}
-                                                    </div>
+                                                            <div className="text-xs text-muted-foreground text-left mt-2 px-1">
+                                                                {formatTime(msg.createdAt)}
+                                                            </div>
+                                                        </>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
                                     ))
                                 )}
                                 
-                                {/* Streaming message bubble - appears after the last message */}
+                                {/* Streaming message bubble - appears after the last message or replaces the streaming message */}
                                 {messageId && displayContent && (
                                     <div className="flex justify-start">
                                         <div className="max-w-[85%] lg:max-w-[75%]">
@@ -296,6 +319,12 @@ export default function HomePage() {
                                                     </div>
                                                 </div>
                                             </div>
+                                            {/* Show timestamp if the message is completed */}
+                                            {displayStatus === 'complete' && currentStreamingMessage && (
+                                                <div className="text-xs text-muted-foreground text-left mt-2 px-1">
+                                                    {formatTime(currentStreamingMessage.createdAt)}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -310,7 +339,9 @@ export default function HomePage() {
                                                     <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
                                                     <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                                                 </div>
-                                                <span className="text-xs">Thinking...</span>
+                                                <span className="text-xs">
+                                                    {stream.content ? 'Thinking...' : 'Resuming stream...'}
+                                                </span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <div className={cn(
@@ -318,7 +349,7 @@ export default function HomePage() {
                                                     isConnected ? "bg-green-500" : "bg-red-500"
                                                 )} />
                                                 <span className="text-xs">
-                                                    {isConnected ? 'Connected' : 'Disconnected'}
+                                                    {isConnected ? 'Connected' : 'Connecting...'}
                                                 </span>
                                             </div>
                                         </div>

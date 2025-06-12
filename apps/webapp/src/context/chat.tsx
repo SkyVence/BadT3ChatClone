@@ -2,7 +2,7 @@
 
 import { models } from '@/models';
 import { api } from '@/trpc/react';
-import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, useEffect, type ReactNode } from "react";
 
 interface Message {
     id: string;
@@ -85,6 +85,29 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
     });
 
     const messages: Message[] = threadData?.data?.messages || [];
+
+    // Check for streaming messages and resume streaming when messages are loaded
+    useEffect(() => {
+        if (!isMessagesLoading && messages.length > 0) {
+            // Find the most recent streaming message (should be assistant role)
+            const streamingMessage = messages
+                .filter(msg => msg.role === 'assistant' && msg.status === 'streaming')
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                [0];
+
+            if (streamingMessage && streamingMessage.id !== messageId) {
+                console.log('Found streaming message, resuming streaming for:', streamingMessage.id);
+                setMessageId(streamingMessage.id);
+            } else if (!streamingMessage && messageId) {
+                // No streaming messages found but we have a messageId, clear it
+                const currentMessage = messages.find(msg => msg.id === messageId);
+                if (currentMessage && (currentMessage.status === 'complete' || currentMessage.status === 'error')) {
+                    console.log('Current message is no longer streaming, clearing messageId');
+                    setMessageId(null);
+                }
+            }
+        }
+    }, [messages, isMessagesLoading, messageId]);
 
     const sendMessage = useCallback((prompt: string, modelVersion?: string) => {
         if (!prompt.trim()) return;

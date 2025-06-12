@@ -58,7 +58,8 @@ export async function GET(
             connectionKey,
             status: message.status,
             contentLength: message.content?.length || 0,
-            role: message.role
+            role: message.role,
+            isResuming: !!message.content
         });
 
         // Track this connection per user
@@ -147,35 +148,37 @@ export async function GET(
                 // Start heartbeat
                 heartbeatInterval = setInterval(sendHeartbeat, 25000);
 
-                // Send initial message data if it exists
-                if (message.content) {
-                    const data = JSON.stringify({
-                        type: 'initial',
-                        fullContent: message.content,
-                        status: message.status,
-                        messageId: message.id,
-                        connectionId,
-                        userId, // Add userId for debugging
-                    });
-                    controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-                    console.log(`SSE: Initial data sent for ${connectionKey}:${connectionId}`);
-                }
+                // Always send initial message data - this enables resumption
+                const data = JSON.stringify({
+                    type: 'initial',
+                    fullContent: message.content || '',
+                    status: message.status,
+                    messageId: message.id,
+                    connectionId,
+                    userId,
+                    isResuming: !!message.content, // Flag to indicate if this is a resumption
+                });
+                controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+                console.log(`SSE: Initial data sent for ${connectionKey}:${connectionId} (resuming: ${!!message.content})`);
 
                 // If message is already complete or error, send final status and close
                 if (message.status === 'complete' || message.status === 'error') {
-                    const data = JSON.stringify({
-                        type: message.status,
-                        fullContent: message.content,
-                        error: message.error,
-                        messageId: message.id,
-                        connectionId,
-                        userId,
-                    });
-                    controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-                    console.log(`SSE: Final status sent for ${connectionKey}:${connectionId}, closing connection`);
+                    // Give a small delay to ensure initial message is processed
+                    setTimeout(() => {
+                        const finalData = JSON.stringify({
+                            type: message.status,
+                            fullContent: message.content,
+                            error: message.error,
+                            messageId: message.id,
+                            connectionId,
+                            userId,
+                        });
+                        controller.enqueue(encoder.encode(`data: ${finalData}\n\n`));
+                        console.log(`SSE: Final status sent for ${connectionKey}:${connectionId}, closing connection`);
 
-                    cleanup();
-                    controller.close();
+                        cleanup();
+                        controller.close();
+                    }, 100);
                     return;
                 }
 
