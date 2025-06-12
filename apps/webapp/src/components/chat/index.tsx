@@ -6,7 +6,8 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/chat/textarea-chat"
 import { Globe, Paperclip, ArrowUp, ChevronDown, Check, ChevronsUpDown } from "lucide-react"
-import { ModelSelector, models } from "../ui/model-selector"
+import { ModelSelector } from "../ui/model-selector"
+import { models } from "@/models"
 
 interface ChatInputProps {
     handleSend: (message: string) => void;

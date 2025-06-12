@@ -4,6 +4,7 @@ import { SidebarInset, SidebarTrigger } from "./ui/sidebar";
 import { ChatInput } from "./chat/index";
 import { SignInDialog } from "./dialog/sign-in";
 import { useStreamer } from "@/context/chat";
+import { Toaster } from "@/components/ui/sonner";
 
 interface StreamingMessageData {
     id: string;
@@ -21,6 +22,7 @@ function ChatContent({ children }: { children: React.ReactNode }) {
 
     return (
         <Fragment>
+            <Toaster />
             <SidebarApp setOpen={setOpen} />
             <SidebarTrigger className="fixed top-4 left-4 z-[9999] size-8" />
             <SidebarInset className="flex flex-col h-screen overflow-hidden">

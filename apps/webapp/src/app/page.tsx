@@ -10,6 +10,7 @@ import { Fragment, useState, useRef, useEffect } from "react";
 import { SignInDialog } from "@/components/dialog/sign-in";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 function formatTime(dateString: string) {
     const date = new Date(dateString);
@@ -58,8 +59,19 @@ export default function HomePage() {
             console.log('Homepage stream completed, clearing messageId');
             clearMessageId(); // Clear messageId when stream completes
         },
-        onError: (error) => {
+        onError: (error: any) => {
             console.log('Homepage stream error, clearing messageId');
+            let description = '';
+            if (typeof error === 'string') {
+                description = error;
+            } else if (error && typeof error.message === 'string') {
+                description = error.message;
+            } else {
+                description = 'An unknown error occurred.';
+            }
+            toast.error("An error occurred while streaming the message.", {
+                description
+            });
             clearMessageId(); // Clear messageId on error
         },
     });
