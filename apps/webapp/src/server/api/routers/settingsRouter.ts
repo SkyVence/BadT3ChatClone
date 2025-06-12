@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { userKeys } from "@/db/schema";
-import { protectedProcedure, router } from "@/lib/trpc";
+import { protectedProcedure, router } from "@/server/api/trpc";
 import { decrypt, encrypt } from "@/utils/crypto";
 import { eq, and } from "drizzle-orm";
 import z from "zod";

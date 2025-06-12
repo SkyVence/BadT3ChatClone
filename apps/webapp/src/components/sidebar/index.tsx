@@ -1,12 +1,18 @@
 "use client"
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { Input } from "../ui/input";
-import { LogIn, LogOut, Plus, SearchIcon, SettingsIcon, User } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { LogIn, LogOut, Plus, SearchIcon, SettingsIcon } from "lucide-react";
 import { useAuth } from "../provider/context";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { ThemeToggle } from "../theme-toggle";
+import { ScrollArea } from "../ui/scroll-area";
+import { trpc } from "@/trpc/client";
+import Link from "next/link";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { Skeleton } from "../ui/skeleton";
+import type { getThreadsResponse } from "@/types/threads";
+import { useInfiniteQuery } from '@tanstack/react-query';
 
 export function ChatMessages({ messages }: { messages: string[] }) {
     return (
@@ -26,27 +32,69 @@ export function ChatMessages({ messages }: { messages: string[] }) {
     );
 }
 
-export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
-    const router = useRouter()
-    const { user, signOut } = useAuth()
 
-    const threads: any[] = []
+export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
+    const [hasMore, setHasMore] = useState(true);
+    const { user, signOut } = useAuth();
+    const loaderRef = useRef<HTMLDivElement>(null);
+    const {
+        data,
+        isLoading,
+        isError,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+    } = useInfiniteQuery({
+        queryKey: ['threads', { limit: 15 }],
+        queryFn: ({ pageParam = 0 }) =>
+            trpc.threads.getThreads.query({ limit: 15, offset: pageParam }),
+        getNextPageParam: (lastPage, allPages) => {
+            // Calculate next offset
+            if (lastPage.meta.totalPages > allPages.length) {
+                return allPages.length * 15;
+            }
+            return undefined;
+        },
+        initialPageParam: 0,
+    });
+    const threads = data?.pages.flatMap(page => page.data) ?? [];
+
+    // IntersectionObserver for infinite scroll
+    useEffect(() => {
+        if (!loaderRef.current || !hasNextPage || isLoading || isFetchingNextPage) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+                    fetchNextPage();
+                }
+            },
+            { threshold: 0.1 }
+        );
+
+        observer.observe(loaderRef.current);
+
+        return () => {
+            if (loaderRef.current) observer.unobserve(loaderRef.current);
+        };
+    }, [fetchNextPage, hasNextPage, isLoading, isFetchingNextPage]);
+
 
     return (
-        <Sidebar variant="inset">
+        <Sidebar variant="inset" className="flex flex-col h-full min-h-screen">
             <SidebarHeader>
                 <div className="mt-9 relative">
                     <SearchIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                     <Input type="search" placeholder="Search..." className="border-none focus-visible:ring-0 pl-8" />
                 </div>
-            </SidebarHeader>
-            <SidebarContent>
                 <SidebarGroup>
                     <SidebarGroupLabel>
                         Projects
                     </SidebarGroupLabel>
-                    <SidebarGroupAction onClick={() => { router.push("/projects/new") }}>
-                        <Plus className="size-4" />
+                    <SidebarGroupAction asChild>
+                        <Link href="/projects/new">
+                            <Plus className="size-4" />
+                        </Link>
                     </SidebarGroupAction>
                     <SidebarGroupContent>
                         <SidebarMenu>
@@ -78,29 +126,60 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
                         </SidebarMenu>
                     </SidebarGroupContent>
                 </SidebarGroup>
-                <SidebarGroup>
-                    <SidebarGroupLabel>
-                        Threads
-                    </SidebarGroupLabel>
-                    <SidebarGroupAction onClick={() => { router.push("/") }}>
-                        <Plus className="size-4" />
+            </SidebarHeader>
+            <SidebarContent>
+                {/** Threads Infinite Scroll */}
+                <SidebarGroup className="flex-1">
+                    <SidebarGroupLabel>Recent Chats</SidebarGroupLabel>
+                    <SidebarGroupAction asChild>
+                        <Link href="/">
+                            <Plus className="size-4" />
+                        </Link>
                     </SidebarGroupAction>
-                    <SidebarGroupContent>
-                        <SidebarMenu>
-                            {threads?.length === 0 ? (
-                                <SidebarMenuItem>
-                                    <SidebarMenuButton>
-                                        <span>New Chat</span>
-                                    </SidebarMenuButton>
-                                </SidebarMenuItem>
-                            ) : threads?.map(thread => (
-                                <SidebarMenuItem key={thread.id}>
-                                    <SidebarMenuButton>
-                                        <span>{thread.title || "Untitled"}</span>
-                                    </SidebarMenuButton>
-                                </SidebarMenuItem>
-                            ))}
-                        </SidebarMenu>
+                    <SidebarGroupContent className="flex-1">
+                        <ScrollArea className="h-full">
+                            <SidebarMenu>
+                                {threads.map((thread: getThreadsResponse["data"][0]) => {
+                                    return (
+                                        <SidebarMenuItem key={thread.id}>
+                                            <SidebarMenuButton asChild>
+                                                <Link href={`/chat?threadId=${thread.id}`}>
+                                                    <span className="truncate max-w-[250px] block">{thread.title}</span>
+                                                </Link>
+                                            </SidebarMenuButton>
+                                        </SidebarMenuItem>
+                                    )
+                                })}
+
+                                {isLoading && (
+                                    <Fragment>
+                                        {Array.from({ length: 15 }).map((_, index) => (
+                                            <SidebarMenuItem key={index}>
+                                                <SidebarMenuButton>
+                                                    <Skeleton className="w-full h-10" />
+                                                </SidebarMenuButton>
+                                            </SidebarMenuItem>
+                                        ))}
+                                    </Fragment>
+                                )}
+
+                                {threads.length === 0 && !isLoading && (
+                                    <SidebarMenuItem>
+                                        <SidebarMenuButton>
+                                            <span className="text-muted-foreground">No chats yet</span>
+                                        </SidebarMenuButton>
+                                    </SidebarMenuItem>
+                                )}
+
+                                {isError && !isLoading && (
+                                    <SidebarMenuItem>
+                                        <SidebarMenuButton>
+                                            <span className="text-red-500">Error loading chats</span>
+                                        </SidebarMenuButton>
+                                    </SidebarMenuItem>
+                                )}
+                            </SidebarMenu>
+                        </ScrollArea>
                     </SidebarGroupContent>
                 </SidebarGroup>
             </SidebarContent>
@@ -138,9 +217,11 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
                             </DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <DropdownMenuGroup>
-                                <DropdownMenuItem onClick={() => { router.push("/settings") }}>
-                                    <SettingsIcon className="size-4" />
-                                    <span>Settings</span>
+                                <DropdownMenuItem asChild>
+                                    <Link href="/settings">
+                                        <SettingsIcon className="size-4" />
+                                        <span>Settings</span>
+                                    </Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem>
                                     <ThemeToggle />

@@ -7,10 +7,10 @@ import { streamStatus, messageRole, providerEnum } from "./enum"
 export const threads = pgTable("threads", {
     id: uuid("id").primaryKey().defaultRandom(),
     userId: text("user_id").references(() => user.id).notNull(),
-    title: text("title").default("New Thread"),
+    title: text("title").default("New Thread").notNull(),
 
-    createdAt: timestamp("created_at").defaultNow(),
-    updatedAt: timestamp("updated_at").defaultNow(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
 })
 
 export const messages = pgTable("messages", {
@@ -18,7 +18,7 @@ export const messages = pgTable("messages", {
     threadId: uuid("thread_id").references(() => threads.id).notNull(),
 
     // Metadata
-    status: streamStatus("status").default("streaming"),
+    status: streamStatus("status").default("streaming").notNull(),
     model: text("model").notNull(),
     role: messageRole("role").notNull(),
     provider: providerEnum("provider").notNull(),
@@ -27,8 +27,8 @@ export const messages = pgTable("messages", {
     content: text("content"),
     error: text("error"),
 
-    createdAt: timestamp("created_at").defaultNow(),
-    updatedAt: timestamp("updated_at").defaultNow(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
 })
 
 export const messagesRelations = relations(messages, ({ one, many }) => ({

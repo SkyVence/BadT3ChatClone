@@ -40,6 +40,15 @@ export function StreamingMessage({
     const displayStatus = status || initialStatus;
     const displayError = error || initialError;
 
+    // Debug: Log connection status changes
+    console.log('StreamingMessage render:', {
+        messageId,
+        isConnected,
+        status: displayStatus,
+        hasContent: !!displayContent,
+        contentLength: displayContent?.length || 0
+    });
+
     return (
         <div className="w-full">
             {/* Message Content */}
@@ -71,6 +80,10 @@ export function StreamingMessage({
                         )} />
                         <span className="text-xs">
                             {isConnected ? 'Connected' : retryCount > 0 ? `Retrying... (${retryCount})` : 'Disconnected'}
+                        </span>
+                        {/* Debug info */}
+                        <span className="text-xs text-blue-500">
+                            (Debug: {isConnected ? 'T' : 'F'})
                         </span>
                     </div>
 

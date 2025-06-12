@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { messages, threads } from "@/db/schema";
-import { protectedProcedure, router } from "@/lib/trpc";
-import { desc, eq } from "drizzle-orm";
+import { protectedProcedure, router } from "@/server/api/trpc";
+import { and, desc, eq, lt } from "drizzle-orm";
 import z from "zod";
 
 export const chatRouter = router({
@@ -83,10 +83,20 @@ export const chatRouter = router({
             return thread;
         }),
     getThreads: protectedProcedure
-        .query(async ({ ctx }) => {
+        .input(z.object({
+            limit: z.number().min(1).max(50).default(20),
+            offset: z.date().optional(),
+        }))
+        .query(async ({ input, ctx }) => {
+            const { limit, offset } = input;
             const userThreads = await db.query.threads.findMany({
-                where: eq(threads.userId, ctx.session.user.id),
+                where: and(
+                    eq(threads.userId, ctx.session.user.id),
+                    offset ? lt(threads.updatedAt, offset) : undefined
+                ),
                 orderBy: [desc(threads.updatedAt)],
+                limit: limit + 1,
+                offset: offset ? 1 : undefined,
                 with: {
                     messages: {
                         orderBy: [desc(messages.createdAt)],
@@ -95,7 +105,16 @@ export const chatRouter = router({
                 }
             });
 
-            return userThreads;
+            let nextCursor: Date | null = null;
+            if (userThreads.length > limit) {
+                const nextItem = userThreads.pop();
+                nextCursor = nextItem?.updatedAt || null;
+            }
+
+            return {
+                threads: userThreads,
+                nextCursor,
+            };
         }),
     getMessage: protectedProcedure
         .input(z.object({

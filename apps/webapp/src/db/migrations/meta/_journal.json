@@ -50,6 +50,20 @@
       "when": 1749589291091,
       "tag": "0006_simple_umar",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1749717426034,
+      "tag": "0007_thankful_maverick",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1749717621918,
+      "tag": "0008_safe_valkyrie",
+      "breakpoints": true
     }
   ]
 }

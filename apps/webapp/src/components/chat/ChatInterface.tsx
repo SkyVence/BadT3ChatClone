@@ -2,11 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ChatInput } from '@/components/chat/index';
 import { StreamingMessage } from '@/components/chat/StreamingMessage';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
-import { models } from '@/models';
 
 interface Message {
     id: string;
@@ -32,12 +30,9 @@ interface Thread {
 
 interface ChatInterfaceProps {
     thread?: Thread;
-    onSendMessage: (prompt: string, model: string, provider: 'anthropic' | 'openai' | 'google') => Promise<void>;
-    isLoading: boolean;
 }
 
-export function ChatInterface({ thread, onSendMessage, isLoading }: ChatInterfaceProps) {
-    const [selectedModel, setSelectedModel] = useState('claude-3.5-sonnet');
+export function ChatInterface({ thread }: ChatInterfaceProps) {
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -47,18 +42,6 @@ export function ChatInterface({ thread, onSendMessage, isLoading }: ChatInterfac
             bottomRef.current.scrollIntoView({ behavior: 'smooth' });
         }
     }, [thread?.messages]);
-
-    const handleSend = async (message: string) => {
-        if (!message.trim() || isLoading) return;
-
-        const model = models.find(m => m.version === selectedModel);
-        if (!model) {
-            console.error('Model not found:', selectedModel);
-            return;
-        }
-
-        await onSendMessage(message, model.version, model.provider as 'anthropic' | 'openai' | 'google');
-    };
 
     const sortedMessages = thread?.messages ? [...thread.messages].sort((a, b) => {
         const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
@@ -76,7 +59,7 @@ export function ChatInterface({ thread, onSendMessage, isLoading }: ChatInterfac
                             {thread?.title || 'New Conversation'}
                         </h1>
                         <p className="text-sm text-muted-foreground">
-                            Testing AI streaming with {selectedModel}
+                            Testing AI streaming
                         </p>
                     </div>
 
@@ -146,17 +129,6 @@ export function ChatInterface({ thread, onSendMessage, isLoading }: ChatInterfac
                 </div>
             </ScrollArea>
 
-            {/* Input */}
-            <div className="border-t border-border p-4">
-                <div className="max-w-4xl mx-auto">
-                    <ChatInput
-                        handleSend={handleSend}
-                        selectedModel={selectedModel}
-                        onModelChange={setSelectedModel}
-                        isLoading={isLoading}
-                    />
-                </div>
-            </div>
         </div>
     );
 } 

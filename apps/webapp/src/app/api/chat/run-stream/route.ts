@@ -21,30 +21,23 @@ const runStreamSchema = z.object({
 
 export async function POST(req: Request) {
     try {
-        console.log('Run-stream endpoint called');
         const session = await auth.api.getSession({
             headers: req.headers,
         });
         if (!session) {
-            console.log('Auth failed in run-stream');
             return new Response("Unauthorized", { status: 401 });
         }
 
         const body = await req.json();
-        console.log('Request body:', body);
         const { threadId, prompt, model, provider } = runStreamSchema.parse(body);
 
-        console.log('Looking for API key for provider:', provider, 'user:', session.user.id);
         const getApiKey = await db.query.userKeys.findFirst({
             where: and(eq(userKeys.userId, session.user.id), eq(userKeys.provider, provider)),
         })
         if (!getApiKey) {
-            console.log('API key not found for provider:', provider);
             return new Response("API key not found", { status: 404 });
         }
-        console.log('API key found, decrypting...');
         const apiKey = decrypt(getApiKey.hashedKey);
-        console.log('API key decrypted successfully');
 
         let rawThreadId: string | null = null;
 
@@ -116,31 +109,23 @@ export async function POST(req: Request) {
                 content: msg.content || "",
             })));
 
-        console.log('Starting AI stream for model:', model, 'provider:', provider);
-        console.log('AI messages context:', aiMessages);
-
         const stream = await streamText({
             model: selectedModel,
             messages: aiMessages
         });
 
-        console.log('Stream created successfully');
         let fullResponse = "";
 
         (async () => {
             try {
-                console.log('Starting to process stream...');
                 for await (const delta of stream.textStream) {
-                    console.log('Received delta:', delta);
                     fullResponse += delta;
 
-                    console.log('Updating database with content length:', fullResponse.length);
                     await db.update(messages).set({
                         content: fullResponse,
                         updatedAt: new Date(),
                     }).where(eq(messages.id, assistantMessage.id));
 
-                    console.log('Publishing to Redis...');
                     await publisher.publish(`message:${assistantMessage.id}`, JSON.stringify({
                         type: 'delta',
                         content: delta,
@@ -148,7 +133,6 @@ export async function POST(req: Request) {
                         messageId: assistantMessage.id,
                     }));
                 }
-                console.log('Stream completed with final content:', fullResponse);
                 await db.update(messages)
                     .set({
                         status: 'complete',
@@ -163,8 +147,6 @@ export async function POST(req: Request) {
                 }));
 
             } catch (error) {
-                console.error('Streaming error:', error);
-
                 await db.update(messages)
                     .set({
                         status: 'error',
@@ -187,7 +169,6 @@ export async function POST(req: Request) {
             userMessageId: userMessage.id,
         });
     } catch (error) {
-        console.error('Run stream error', error);
         return NextResponse.json(
             { error: 'Internal server Error' },
             { status: 500 }

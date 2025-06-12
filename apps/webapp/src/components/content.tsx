@@ -1,15 +1,23 @@
 import { Fragment, useState } from "react";
-import { ChatMessages, SidebarApp } from "./sidebar";
+import { SidebarApp } from "./sidebar";
 import { SidebarInset, SidebarTrigger } from "./ui/sidebar";
-import { ChatInput } from "./chat";
+import { ChatInput } from "./chat/index";
 import { SignInDialog } from "./dialog/sign-in";
+
+interface StreamingMessageData {
+    id: string;
+    content: string;
+    isStreaming: boolean;
+}
 
 export function AppContent({ children }: { children: React.ReactNode }) {
     const [open, setOpen] = useState(false);
-    const [messages, setMessages] = useState<string[]>([]);
 
     function handleSend(message: string) {
-        console.log(message);
+        console.log(message)
+    }
+    function isLoading() {
+        return false;
     }
 
     return (
@@ -22,8 +30,10 @@ export function AppContent({ children }: { children: React.ReactNode }) {
                 </main>
 
                 <div className="w-full max-w-4xl mx-auto border-x border-t border-border rounded-t-xl bg-background">
-                    <ChatMessages messages={messages} />
-                    <ChatInput handleSend={handleSend} />
+                    <ChatInput
+                        handleSend={handleSend}
+                        isLoading={isLoading()}
+                    />
                 </div>
             </SidebarInset>
             <SignInDialog open={open} onOpenChange={setOpen} />
