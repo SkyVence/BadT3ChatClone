@@ -34,7 +34,7 @@ export default function HomePage() {
     // Navigate to chat page when a thread is created
     useEffect(() => {
         if (threadId && messages.length > 0) {
-            router.push(`/chat?threadId=${threadId}`);
+            router.push(`/chat/${threadId}`);
         }
     }, [threadId, messages.length, router]);
 
@@ -63,7 +63,7 @@ export default function HomePage() {
             clearMessageId(); // Clear messageId on error
         },
     });
-    
+
     // Use the stream content if available, otherwise fall back to the message content
     const displayContent = stream.content || initialStreamingContent;
     const displayStatus = stream.status || initialStreamingStatus;
@@ -247,8 +247,8 @@ export default function HomePage() {
                                             {messageId ? 'Resuming streaming...' : 'Ask me anything to get started'}
                                         </p>
                                     </div>
-                                    <Button 
-                                        variant="outline" 
+                                    <Button
+                                        variant="outline"
                                         size="sm"
                                         onClick={() => setShowChat(false)}
                                     >
@@ -256,7 +256,7 @@ export default function HomePage() {
                                     </Button>
                                 </div>
                             </div>
-                            
+
                             <div
                                 ref={scrollRef}
                                 className="flex-1 flex flex-col gap-6 p-4 pb-32 max-w-4xl w-full mx-auto overflow-y-auto"
@@ -307,7 +307,7 @@ export default function HomePage() {
                                         </div>
                                     ))
                                 )}
-                                
+
                                 {/* Streaming message bubble - appears after the last message or replaces the streaming message */}
                                 {messageId && displayContent && (
                                     <div className="flex justify-start">
@@ -328,7 +328,7 @@ export default function HomePage() {
                                         </div>
                                     </div>
                                 )}
-                                
+
                                 {/* Streaming status */}
                                 {messageId && displayStatus === 'streaming' && (
                                     <div className="pl-2">
@@ -358,7 +358,7 @@ export default function HomePage() {
                             </div>
                         </div>
                     )}
-                    
+
                     {/* Fixed Chat Input - Always visible when user is signed in */}
                     {user && (
                         <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center pointer-events-none">

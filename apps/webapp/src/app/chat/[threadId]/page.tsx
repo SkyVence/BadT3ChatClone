@@ -1,6 +1,6 @@
 "use client";
 import { useStreamer } from "@/context/chat";
-import { useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { useMessageStream } from "@/hooks/use-message-stream";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,8 @@ function formatTime(dateString: string) {
 
 export default function ChatPage({ children }: { children?: React.ReactNode }) {
     const { messageId, setThreadId, messages, isMessagesLoading, clearMessageId } = useStreamer();
-    const searchParams = useSearchParams();
-    const threadId = searchParams.get("threadId");
+    const params = useParams();
+    const threadId = params.threadId as string;
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -47,7 +47,7 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
             clearMessageId(); // Clear messageId on error
         },
     });
-    
+
     // Use the stream content if available, otherwise fall back to the message content
     const displayContent = stream.content || initialStreamingContent;
     const displayStatus = stream.status || initialStreamingStatus;
@@ -112,7 +112,7 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                         </div>
                     ))
                 )}
-                
+
                 {/* Streaming message bubble - appears after the last message or replaces the streaming message */}
                 {messageId && displayContent && (
                     <div className="flex justify-start">
@@ -133,7 +133,7 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                         </div>
                     </div>
                 )}
-                
+
                 {/* Streaming status */}
                 {messageId && (
                     <div className="pl-2">
@@ -212,4 +212,4 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
             {children}
         </div>
     );
-}
+} 
