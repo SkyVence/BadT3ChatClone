@@ -5,6 +5,13 @@ import { db } from '@/db';
 import { messages } from '@/db/schema/threads';
 import { eq } from 'drizzle-orm';
 
+// Store active connections per message to manage cleanup
+const activeConnections = new Map<string, Set<string>>();
+
+function generateConnectionId(): string {
+    return `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
 export async function GET(
     req: NextRequest,
     { params }: { params: { messageId: string } }
@@ -20,6 +27,7 @@ export async function GET(
         }
 
         const { messageId } = await params;
+        const connectionId = generateConnectionId();
 
         // Verify message exists and user has access
         const message = await db.query.messages.findFirst({
@@ -37,78 +45,101 @@ export async function GET(
             return new Response('Message not found', { status: 404 });
         }
 
-        console.log('SSE: Message found', {
+        console.log('SSE: New connection for message', {
             messageId: message.id,
+            connectionId,
             status: message.status,
             contentLength: message.content?.length || 0,
-            role: message.role
+            role: message.role,
+            userId: session.user.id
         });
+
+        // Track this connection
+        if (!activeConnections.has(messageId)) {
+            activeConnections.set(messageId, new Set());
+        }
+        activeConnections.get(messageId)!.add(connectionId);
 
         // Create SSE stream
         const stream = new ReadableStream({
             start(controller) {
                 const encoder = new TextEncoder();
                 let heartbeatInterval: NodeJS.Timeout | null = null;
-                let redisSubscriber: any = null;
                 let isCleanedUp = false;
                 const channel = `message:${messageId}`;
+                let messageHandler: ((channel: string, data: string) => void) | null = null;
+                let errorHandler: ((error: any) => void) | null = null;
 
-                // Send keep-alive comments every 30 seconds
+                // Send keep-alive comments every 25 seconds (shorter than client timeout)
                 const sendHeartbeat = () => {
                     if (isCleanedUp) return;
                     try {
-                        controller.enqueue(encoder.encode(`: heartbeat\n\n`));
+                        const heartbeatData = `: heartbeat ${Date.now()}\n\n`;
+                        controller.enqueue(encoder.encode(heartbeatData));
+                        console.log(`SSE: Heartbeat sent for ${messageId}:${connectionId}`);
                     } catch (error) {
-                        // Connection closed, trigger cleanup
+                        console.log(`SSE: Error sending heartbeat for ${messageId}:${connectionId}`, error);
                         cleanup();
                     }
                 };
 
-                // Cleanup function
+                // Enhanced cleanup function
                 const cleanup = () => {
                     if (isCleanedUp) return;
                     isCleanedUp = true;
 
+                    console.log(`SSE: Cleaning up connection ${connectionId} for message ${messageId}`);
+
+                    // Clear heartbeat
                     if (heartbeatInterval) {
                         clearInterval(heartbeatInterval);
                         heartbeatInterval = null;
                     }
 
-                    if (redisSubscriber) {
-                        try {
-                            const unsubscribeResult = redisSubscriber.unsubscribe(channel);
-                            if (unsubscribeResult && typeof unsubscribeResult.catch === 'function') {
-                                unsubscribeResult.catch(() => { });
-                            }
-                        } catch (error) {
-                            // Ignore cleanup errors
+                    // Remove connection from tracking
+                    const connections = activeConnections.get(messageId);
+                    if (connections) {
+                        connections.delete(connectionId);
+                        if (connections.size === 0) {
+                            activeConnections.delete(messageId);
+                            console.log(`SSE: No more connections for message ${messageId}, removing from tracking`);
                         }
+                    }
 
-                        try {
-                            const disconnectResult = redisSubscriber.disconnect();
-                            if (disconnectResult && typeof disconnectResult.catch === 'function') {
-                                disconnectResult.catch(() => { });
-                            }
-                        } catch (error) {
-                            // Ignore cleanup errors
-                        }
+                    // Remove event listeners
+                    if (messageHandler) {
+                        subscriber.off('message', messageHandler);
+                        messageHandler = null;
+                    }
+                    if (errorHandler) {
+                        subscriber.off('error', errorHandler);
+                        errorHandler = null;
+                    }
 
-                        redisSubscriber = null;
+                    // Unsubscribe from Redis channel if no more connections
+                    const remainingConnections = activeConnections.get(messageId);
+                    if (!remainingConnections || remainingConnections.size === 0) {
+                        subscriber.unsubscribe(channel).catch((error) => {
+                            console.log(`SSE: Error unsubscribing from ${channel}:`, error);
+                        });
+                        console.log(`SSE: Unsubscribed from Redis channel: ${channel}`);
                     }
                 };
 
                 // Start heartbeat
-                heartbeatInterval = setInterval(sendHeartbeat, 30000);
+                heartbeatInterval = setInterval(sendHeartbeat, 25000);
 
-                // Send initial message if it exists
+                // Send initial message data if it exists
                 if (message.content) {
                     const data = JSON.stringify({
                         type: 'initial',
                         fullContent: message.content,
                         status: message.status,
                         messageId: message.id,
+                        connectionId, // Add connection ID for debugging
                     });
                     controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+                    console.log(`SSE: Initial data sent for ${messageId}:${connectionId}`);
                 }
 
                 // If message is already complete or error, send final status and close
@@ -118,75 +149,84 @@ export async function GET(
                         fullContent: message.content,
                         error: message.error,
                         messageId: message.id,
+                        connectionId,
                     });
                     controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+                    console.log(`SSE: Final status sent for ${messageId}:${connectionId}, closing connection`);
 
                     cleanup();
                     controller.close();
                     return;
                 }
 
-                // Use the main subscriber instead of duplicating to avoid connection issues
-                // Subscribe directly to the channel
-                const handleRedisMessage = (receivedChannel: string, data: string) => {
+                // Set up Redis message handler
+                messageHandler = (receivedChannel: string, data: string) => {
                     if (isCleanedUp) return;
                     if (receivedChannel === channel) {
                         try {
                             const parsedData = JSON.parse(data);
-                            controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+                            // Add connection ID for debugging
+                            parsedData.connectionId = connectionId;
+                            const messageData = JSON.stringify(parsedData);
+                            controller.enqueue(encoder.encode(`data: ${messageData}\n\n`));
+                            console.log(`SSE: Redis message forwarded for ${messageId}:${connectionId}, type: ${parsedData.type}`);
 
                             // Close stream if complete or error
                             if (parsedData.type === 'complete' || parsedData.type === 'error') {
+                                console.log(`SSE: Stream completed for ${messageId}:${connectionId}`);
                                 cleanup();
                                 controller.close();
                             }
                         } catch (error) {
-                            console.error('Error parsing Redis message:', error);
+                            console.error(`SSE: Error parsing Redis message for ${messageId}:${connectionId}:`, error);
                         }
                     }
                 };
 
-                const handleRedisError = (error: any) => {
+                // Set up Redis error handler
+                errorHandler = (error: any) => {
                     if (isCleanedUp) return;
-                    console.error('Redis subscriber error:', error);
+                    console.error(`SSE: Redis subscriber error for ${messageId}:${connectionId}:`, error);
                     cleanup();
                     try {
                         controller.close();
-                    } catch { }
+                    } catch (closeError) {
+                        console.log(`SSE: Error closing controller for ${messageId}:${connectionId}:`, closeError);
+                    }
                 };
 
-                // Subscribe using the main subscriber
-                subscriber.on('message', handleRedisMessage);
-                subscriber.on('error', handleRedisError);
+                // Attach event listeners
+                subscriber.on('message', messageHandler);
+                subscriber.on('error', errorHandler);
 
-                subscriber.subscribe(channel).catch((error: any) => {
-                    console.error('Redis subscription error:', error);
+                // Subscribe to the Redis channel
+                subscriber.subscribe(channel).then(() => {
+                    console.log(`SSE: Subscribed to Redis channel: ${channel} for connection ${connectionId}`);
+                }).catch((error: any) => {
+                    console.error(`SSE: Redis subscription error for ${messageId}:${connectionId}:`, error);
                     cleanup();
                     try {
                         controller.close();
-                    } catch { }
+                    } catch (closeError) {
+                        console.log(`SSE: Error closing controller after subscription error:`, closeError);
+                    }
                 });
 
-                console.log('SSE: Subscribed to Redis channel:', channel);
-
-                // Enhanced cleanup for event listeners
-                const enhancedCleanup = () => {
+                // Handle client disconnect
+                const handleDisconnect = () => {
+                    console.log(`SSE: Client disconnected for ${messageId}:${connectionId}`);
                     cleanup();
-                    // Remove event listeners from main subscriber
-                    subscriber.off('message', handleRedisMessage);
-                    subscriber.off('error', handleRedisError);
-                    // Unsubscribe from the specific channel
-                    subscriber.unsubscribe(channel).catch(() => { });
                 };
 
-                // Cleanup on stream close or request abort
-                req.signal.addEventListener('abort', enhancedCleanup);
+                // Listen for abort signal
+                req.signal.addEventListener('abort', handleDisconnect);
 
                 // Store cleanup function for later use
-                (controller as any).cleanup = enhancedCleanup;
+                (controller as any).cleanup = cleanup;
             },
 
             cancel() {
+                console.log(`SSE: Stream cancelled for ${messageId}:${connectionId}`);
                 // Cleanup when stream is cancelled
                 if ((this as any).cleanup) {
                     (this as any).cleanup();
@@ -203,6 +243,7 @@ export async function GET(
                 'Access-Control-Allow-Methods': 'GET',
                 'Access-Control-Allow-Headers': 'Cache-Control, Authorization',
                 'X-Accel-Buffering': 'no', // Disable nginx buffering
+                'X-Connection-Id': connectionId, // Add connection ID to headers for debugging
             },
         });
 

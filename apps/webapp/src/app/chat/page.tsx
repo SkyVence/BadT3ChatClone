@@ -1,5 +1,5 @@
 "use client";
-import { useChat } from "@/components/chat/ChatContext";
+import { useStreamer } from "@/context/chat";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { useMessageStream } from "@/hooks/use-message-stream";
@@ -13,7 +13,7 @@ function formatTime(dateString: string) {
 }
 
 export default function ChatPage({ children }: { children?: React.ReactNode }) {
-    const { currentMessageId, setThreadId, messages, isMessagesLoading } = useChat();
+    const { messageId, setThreadId, messages, isMessagesLoading } = useStreamer();
     const searchParams = useSearchParams();
     const threadId = searchParams.get("threadId");
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -27,11 +27,11 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [messages, isMessagesLoading, currentMessageId]);
+    }, [messages, isMessagesLoading, messageId]);
 
     // Streaming logic
     const stream = useMessageStream({
-        messageId: currentMessageId || "",
+        messageId: messageId || "",
         initialStatus: "streaming",
         onComplete: () => { },
         onError: () => { },
@@ -47,48 +47,80 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
         <div className="flex flex-col min-h-screen bg-background">
             <div
                 ref={scrollRef}
-                className="flex-1 flex flex-col gap-4 p-4 pb-32 max-w-4xl w-full mx-auto overflow-y-auto"
+                className="flex-1 flex flex-col gap-6 p-4 pb-32 max-w-4xl w-full mx-auto overflow-y-auto"
             >
                 {isMessagesLoading ? (
-                    <div className="text-muted-foreground">Loading messages...</div>
+                    <div className="flex items-center justify-center py-8">
+                        <div className="text-muted-foreground">Loading messages...</div>
+                    </div>
                 ) : messages.length === 0 ? (
-                    <div className="text-muted-foreground">No messages yet. Start the conversation!</div>
+                    <div className="flex items-center justify-center py-8">
+                        <div className="text-center">
+                            <h3 className="text-lg font-medium text-foreground mb-2">Start a conversation</h3>
+                            <p className="text-muted-foreground">Ask me anything to get started!</p>
+                        </div>
+                    </div>
                 ) : (
                     messages.slice().reverse().map((msg) => (
                         <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[70%] rounded-2xl px-4 py-2 shadow-sm
-                                ${msg.role === 'user'
-                                    ? 'bg-blue-600 text-white rounded-br-md'
-                                    : 'bg-muted/50 text-foreground rounded-bl-md border border-border'}
-                            `}>
-                                <div className="whitespace-pre-wrap break-words text-base">{msg.content}</div>
-                                <div className={`text-xs mt-1 ${msg.role === 'user' ? 'text-blue-100 text-right' : 'text-muted-foreground text-left'}`}>{formatTime(msg.createdAt)}</div>
-                            </div>
+                            {msg.role === 'user' ? (
+                                // User message with bubble
+                                <div className="max-w-[80%] lg:max-w-[70%]">
+                                    <div className="bg-primary text-primary-foreground rounded-2xl rounded-br-md px-4 py-3 shadow-sm">
+                                        <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                                            {msg.content}
+                                        </div>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground text-right mt-1 px-1">
+                                        {formatTime(msg.createdAt)}
+                                    </div>
+                                </div>
+                            ) : (
+                                // Assistant message without bubble
+                                <div className="max-w-[85%] lg:max-w-[75%]">
+                                    <div className="text-foreground">
+                                        <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
+                                            <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                                                {msg.content}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground text-left mt-2 px-1">
+                                        {formatTime(msg.createdAt)}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ))
                 )}
-                {/* Streaming bubble */}
-                {currentMessageId && (
+                
+                {/* Streaming message bubble */}
+                {messageId && displayContent && (
                     <div className="flex justify-start">
-                        <div className="max-w-[70%] rounded-2xl px-4 py-2 shadow-sm bg-muted/50 text-foreground rounded-bl-md border border-border">
-                            <div className="whitespace-pre-wrap break-words text-base min-h-[24px]">
-                                {displayContent}
+                        <div className="max-w-[85%] lg:max-w-[75%]">
+                            <div className="text-foreground">
+                                <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
+                                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed min-h-[20px]">
+                                        {displayContent}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 )}
-                {/* Streaming status below bubble */}
-                {currentMessageId && (
+                
+                {/* Streaming status */}
+                {messageId && (
                     <div className="pl-2">
                         {displayStatus === 'streaming' && (
-                            <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
                                 <div className="flex items-center gap-2">
-                                    <div className="animate-pulse flex space-x-1">
-                                        <div className="w-1 h-1 bg-current rounded-full animate-bounce"></div>
-                                        <div className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                                        <div className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                                    <div className="flex space-x-1">
+                                        <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div>
+                                        <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                                        <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                                     </div>
-                                    <span>AI is responding...</span>
+                                    <span className="text-xs">Thinking...</span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <div className={cn(
@@ -97,9 +129,6 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                                     )} />
                                     <span className="text-xs">
                                         {isConnected ? 'Connected' : retryCount > 0 ? `Retrying... (${retryCount})` : 'Disconnected'}
-                                    </span>
-                                    <span className="text-xs text-blue-500">
-                                        (Debug: {isConnected ? 'T' : 'F'})
                                     </span>
                                 </div>
                                 {!isConnected && (
@@ -116,7 +145,7 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                             </div>
                         )}
                         {displayStatus === 'error' && (
-                            <div className="flex items-start gap-2 mt-2 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                            <div className="flex items-start gap-2 mt-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
                                 <AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
                                 <div className="flex-1">
                                     <div className="text-sm font-medium text-destructive">
@@ -143,7 +172,7 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                             </div>
                         )}
                         {displayStatus === 'complete' && displayContent && (
-                            <div className="mt-2">
+                            <div className="mt-1">
                                 <div className="text-xs text-muted-foreground">
                                     ✓ Response complete
                                 </div>

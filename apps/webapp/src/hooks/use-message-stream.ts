@@ -30,45 +30,73 @@ export function useMessageStream({
     const [isConnected, setIsConnected] = useState(false);
     const [retryCount, setRetryCount] = useState(0);
     const [hasReceivedInitialMessage, setHasReceivedInitialMessage] = useState(false);
+    const [lastReconnectTime, setLastReconnectTime] = useState<number>(0);
 
     const eventSourceRef = useRef<EventSource | null>(null);
     const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isConnectingRef = useRef(false);
     const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const heartbeatTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const visibilityChangeHandlerRef = useRef<(() => void) | null>(null);
 
     // Debug: Track connection status changes
     useEffect(() => {
         console.log(`[useMessageStream] 🔌 Connection status changed for ${messageId}:`, isConnected);
     }, [isConnected, messageId]);
 
-    // Stable cleanup function that doesn't change
+    // Enhanced cleanup function that handles all timers and connections
     const cleanup = useCallback(() => {
         console.log(`[useMessageStream] 🧹 Cleanup called for ${messageId}`);
+        
         if (eventSourceRef.current) {
             eventSourceRef.current.close();
             eventSourceRef.current = null;
         }
-        if (retryTimeoutRef.current) {
-            clearTimeout(retryTimeoutRef.current);
-            retryTimeoutRef.current = null;
+        
+        // Clear all timeouts
+        [retryTimeoutRef, connectionTimeoutRef, heartbeatTimeoutRef].forEach(ref => {
+            if (ref.current) {
+                clearTimeout(ref.current);
+                ref.current = null;
+            }
+        });
+
+        // Remove visibility change handler
+        if (visibilityChangeHandlerRef.current) {
+            document.removeEventListener('visibilitychange', visibilityChangeHandlerRef.current);
+            visibilityChangeHandlerRef.current = null;
         }
-        if (connectionTimeoutRef.current) {
-            clearTimeout(connectionTimeoutRef.current);
-            connectionTimeoutRef.current = null;
-        }
+        
         setIsConnected(false);
         isConnectingRef.current = false;
-    }, [messageId]); // Only depend on messageId
+    }, [messageId]);
+
+    // Handle page visibility changes to reconnect when user comes back
+    const handleVisibilityChange = useCallback(() => {
+        if (document.visibilityState === 'visible' && !isConnected && status === 'streaming') {
+            const timeSinceLastReconnect = Date.now() - lastReconnectTime;
+            // Only reconnect if it's been at least 2 seconds since last attempt
+            if (timeSinceLastReconnect > 2000) {
+                console.log(`[useMessageStream] 👁️ Page visible, attempting reconnect for ${messageId}`);
+                setLastReconnectTime(Date.now());
+                setTimeout(() => {
+                    if (status === 'streaming' && !isConnected) {
+                        connect();
+                    }
+                }, 500);
+            }
+        }
+    }, [isConnected, status, messageId, lastReconnectTime]);
 
     const connect = useCallback(() => {
         console.log(`[useMessageStream] connect() called for ${messageId} with status: ${status}, hasReceivedInitial: ${hasReceivedInitialMessage}`);
+        
         if (!messageId) {
             console.log(`[useMessageStream] connect() early return: no messageId`);
             return;
         }
 
-        // Only skip connection for completed messages if we've already received the initial message from the server
-        // This ensures we always try the initial connection to get the actual server status
+        // Skip connection for completed messages if we've already received the initial message
         if (hasReceivedInitialMessage && (status === 'complete' || status === 'error')) {
             console.log(`[useMessageStream] ⏭️ Skipping connection for completed message ${messageId}: ${status}`);
             return;
@@ -84,30 +112,72 @@ export function useMessageStream({
         isConnectingRef.current = true;
 
         try {
-            const eventSource = new EventSource(`/api/chat/stream/subscribe/${messageId}`);
+            // Add timestamp to prevent caching issues
+            const url = `/api/chat/stream/subscribe/${messageId}?t=${Date.now()}`;
+            const eventSource = new EventSource(url);
             eventSourceRef.current = eventSource;
+
+            // Set connection timeout
+            connectionTimeoutRef.current = setTimeout(() => {
+                if (isConnectingRef.current && !isConnected) {
+                    console.log(`[useMessageStream] ⏰ Connection timeout for ${messageId}`);
+                    eventSource.close();
+                    isConnectingRef.current = false;
+                    setIsConnected(false);
+                }
+            }, 10000); // 10 second timeout
 
             eventSource.onopen = () => {
                 console.log(`[useMessageStream] ✅ SSE onopen fired for ${messageId}`);
                 setIsConnected(true);
                 setRetryCount(0);
                 isConnectingRef.current = false;
+                setLastReconnectTime(Date.now());
+                
                 if (connectionTimeoutRef.current) {
                     clearTimeout(connectionTimeoutRef.current);
                     connectionTimeoutRef.current = null;
                 }
+
+                // Reset heartbeat timeout on successful connection
+                if (heartbeatTimeoutRef.current) {
+                    clearTimeout(heartbeatTimeoutRef.current);
+                }
+                heartbeatTimeoutRef.current = setTimeout(() => {
+                    if (isConnected) {
+                        console.log(`[useMessageStream] � Heartbeat timeout, checking connection for ${messageId}`);
+                        // Check if connection is actually still alive
+                        if (eventSource.readyState !== EventSource.OPEN) {
+                            setIsConnected(false);
+                        }
+                    }
+                }, 45000); // 45 seconds (longer than server heartbeat)
             };
 
             eventSource.onmessage = (event) => {
-                console.log(`[useMessageStream] 📨 Message received for ${messageId}, setting connected`);
-                // Always mark as connected when we receive any message
+                console.log(`[useMessageStream] 📨 Message received for ${messageId}`);
+                
+                // Mark as connected and reset retry count
                 setIsConnected(true);
                 setRetryCount(0);
                 isConnectingRef.current = false;
+                
+                // Clear connection timeout
                 if (connectionTimeoutRef.current) {
                     clearTimeout(connectionTimeoutRef.current);
                     connectionTimeoutRef.current = null;
                 }
+
+                // Reset heartbeat timeout
+                if (heartbeatTimeoutRef.current) {
+                    clearTimeout(heartbeatTimeoutRef.current);
+                }
+                heartbeatTimeoutRef.current = setTimeout(() => {
+                    if (isConnected) {
+                        console.log(`[useMessageStream] 💓 Heartbeat timeout after message for ${messageId}`);
+                        setIsConnected(false);
+                    }
+                }, 45000);
 
                 // Handle heartbeat messages (keep connection alive)
                 if (event.data.trim() === '' || event.data.startsWith(':')) {
@@ -117,7 +187,7 @@ export function useMessageStream({
 
                 try {
                     const data: StreamMessage = JSON.parse(event.data);
-                    console.log(`[useMessageStream] 📝 Data message received for ${messageId}:`, data.type, data);
+                    console.log(`[useMessageStream] 📝 Data message received for ${messageId}:`, data.type);
                     onMessage?.(data);
 
                     switch (data.type) {
@@ -158,6 +228,7 @@ export function useMessageStream({
                 setIsConnected(false);
                 isConnectingRef.current = false;
 
+                // Clear timeouts
                 if (connectionTimeoutRef.current) {
                     clearTimeout(connectionTimeoutRef.current);
                     connectionTimeoutRef.current = null;
@@ -169,21 +240,20 @@ export function useMessageStream({
                     eventSourceRef.current = null;
                 }
 
-                // Retry logic: 
-                // - Always retry if we haven't received the initial message yet (to get server status)
-                // - Only retry if server says message is still streaming and we haven't exceeded max retries
-                const maxRetries = 3;
+                // Enhanced retry logic with exponential backoff
+                const maxRetries = 5; // Increased max retries
                 const shouldRetry = (!hasReceivedInitialMessage || status === 'streaming') && retryCount < maxRetries;
 
                 if (shouldRetry) {
-                    console.log(`[useMessageStream] 🔄 Scheduling retry ${retryCount + 1}/${maxRetries} for ${messageId} (hasInitial: ${hasReceivedInitialMessage}, status: ${status})`);
-                    // Exponential backoff with jitter
-                    const baseDelay = 2000;
-                    const jitter = Math.random() * 1000;
-                    const delay = Math.min(baseDelay * Math.pow(2, retryCount) + jitter, 15000);
+                    console.log(`[useMessageStream] 🔄 Scheduling retry ${retryCount + 1}/${maxRetries} for ${messageId}`);
+                    // Exponential backoff with jitter and increased base delay
+                    const baseDelay = 3000; // Increased base delay
+                    const jitter = Math.random() * 2000;
+                    const delay = Math.min(baseDelay * Math.pow(1.5, retryCount) + jitter, 30000);
 
                     retryTimeoutRef.current = setTimeout(() => {
                         setRetryCount(prev => prev + 1);
+                        setLastReconnectTime(Date.now());
                         connect();
                     }, delay);
                 } else if (retryCount >= maxRetries) {
@@ -198,42 +268,55 @@ export function useMessageStream({
             isConnectingRef.current = false;
             setStatus('error');
             setError('Failed to establish connection');
+            
             if (connectionTimeoutRef.current) {
                 clearTimeout(connectionTimeoutRef.current);
                 connectionTimeoutRef.current = null;
             }
         }
-    }, [messageId, status, retryCount, hasReceivedInitialMessage, onMessage, onComplete, onError, cleanup]); // Fixed dependencies
+    }, [messageId, status, retryCount, hasReceivedInitialMessage, onMessage, onComplete, onError, cleanup, isConnected, lastReconnectTime]);
 
-    // Single effect to manage connection
+    // Effect to manage connection and visibility changes
     useEffect(() => {
         console.log(`[useMessageStream] 🔄 Effect triggered for ${messageId}, status: ${status}`);
-        // Reset flag when messageId changes (new message)
-        setHasReceivedInitialMessage(false);
-
-        if (status === 'streaming') {
-            connect();
-        } else {
-            console.log(`[useMessageStream] Effect: Not connecting because status is '${status}' for ${messageId}`);
+        
+        // Reset state when messageId changes
+        if (messageId) {
+            setHasReceivedInitialMessage(false);
+            setRetryCount(0);
+            setError(null);
         }
-        // Return cleanup only on unmount or messageId/status change
+
+        // Set up visibility change handler
+        visibilityChangeHandlerRef.current = handleVisibilityChange;
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        if (status === 'streaming' && messageId) {
+            connect();
+        }
+
+        // Cleanup on unmount or messageId/status change
         return () => {
             console.log(`[useMessageStream] 🧽 Effect cleanup for ${messageId}`);
             cleanup();
         };
-    }, [messageId, status]); // Depend on both messageId and status
+    }, [messageId, status]); // Minimal dependencies
 
     const reconnect = useCallback(() => {
         console.log(`🔄 Manual reconnect for ${messageId}`);
         cleanup();
         setRetryCount(0);
         setError(null);
-        setHasReceivedInitialMessage(false); // Reset flag to allow reconnection
-        // Small delay before reconnecting to avoid immediate reconnection
+        setHasReceivedInitialMessage(false);
+        setLastReconnectTime(Date.now());
+        
+        // Small delay before reconnecting
         setTimeout(() => {
-            connect();
-        }, 500);
-    }, [cleanup, connect, messageId]);
+            if (status === 'streaming') {
+                connect();
+            }
+        }, 1000);
+    }, [cleanup, connect, messageId, status]);
 
     return {
         content,
