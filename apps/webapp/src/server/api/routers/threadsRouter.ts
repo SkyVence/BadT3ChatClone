@@ -14,11 +14,11 @@ export const threadsRouter = router({
 
             await db.query.threads.findMany({
                 where: eq(threads.userId, ctx.session.user.id),
-                orderBy: [asc(threads.updatedAt)],
+                orderBy: [desc(threads.updatedAt)],
                 with: {
                     messages: {
-                        orderBy: [asc(messages.createdAt)],
-                        limit: 3
+                        orderBy: [desc(messages.createdAt)],
+                        limit: 1
                     },
                 },
                 limit: input.limit,
@@ -34,7 +34,7 @@ export const threadsRouter = router({
             meta: {
                 total,
                 totalPages,
-                page: input.offset,
+                page: Math.floor(input.offset / input.limit) + 1,
                 limit: input.limit,
             },
         };
@@ -45,7 +45,9 @@ export const threadsRouter = router({
         const thread = await db.query.threads.findFirst({
             where: and(eq(threads.id, input.threadId), eq(threads.userId, ctx.session.user.id)),
             with: {
-                messages: true,
+                messages: {
+                    orderBy: [asc(messages.createdAt)]
+                },
             }
         });
         return {
