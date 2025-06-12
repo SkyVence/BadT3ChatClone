@@ -7,13 +7,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { ThemeToggle } from "../theme-toggle";
 import { ScrollArea } from "../ui/scroll-area";
-import { trpc } from "@/trpc/client";
+import { api } from "@/trpc/react";
 import Link from "next/link";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, useCallback } from "react";
 import { Skeleton } from "../ui/skeleton";
 import type { getThreadsResponse } from "@/types/threads";
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { usePathname } from "next/navigation";
+import { useStreamer } from "@/context/chat";
 
 export function ChatMessages({ messages }: { messages: string[] }) {
     return (
@@ -33,12 +34,39 @@ export function ChatMessages({ messages }: { messages: string[] }) {
     );
 }
 
+function formatPreview(content: string | null): string {
+    if (!content) return "No messages yet";
+    // Remove markdown and trim to reasonable length
+    const cleaned = content.replace(/[#*`]/g, '').trim();
+    return cleaned.length > 60 ? cleaned.substring(0, 60) + '...' : cleaned;
+}
+
+function formatTime(dateString: string): string {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+    const diffDays = diffHours / 24;
+
+    if (diffHours < 1) {
+        return "Just now";
+    } else if (diffHours < 24) {
+        return `${Math.floor(diffHours)}h ago`;
+    } else if (diffDays < 7) {
+        return `${Math.floor(diffDays)}d ago`;
+    } else {
+        return date.toLocaleDateString();
+    }
+}
 
 export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
-    const [hasMore, setHasMore] = useState(true);
     const { user, signOut } = useAuth();
     const pathname = usePathname();
+    const { threadId: currentThreadId, optimisticMessage } = useStreamer();
     const loaderRef = useRef<HTMLDivElement>(null);
+    const scrollAreaRef = useRef<HTMLDivElement>(null);
+    const [isNearBottom, setIsNearBottom] = useState(false);
+
     const {
         data,
         isLoading,
@@ -46,34 +74,40 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
         fetchNextPage,
         hasNextPage,
         isFetchingNextPage,
-    } = useInfiniteQuery({
-        queryKey: ['threads', { limit: 15 }],
-        queryFn: ({ pageParam = 0 }) =>
-            trpc.threads.getThreads.query({ limit: 15, offset: pageParam }),
-        getNextPageParam: (lastPage, allPages) => {
-            // Calculate next offset
-            if (lastPage.meta.totalPages > allPages.length) {
-                return allPages.length * 15;
-            }
-            return undefined;
-        },
-        initialPageParam: 0,
-    });
-    const threads = data?.pages.flatMap(page => page.data) ?? [];
-    console.log(threads)
+        error,
+    } = api.threads.getThreads.useInfiniteQuery(
+        { limit: 15 },
+        {
+            getNextPageParam: (lastPage, allPages) => {
+                const currentOffset = allPages.length * 15;
+                // Check if there are more items to fetch
+                if (currentOffset < lastPage.meta.total) {
+                    return currentOffset;
+                }
+                return undefined;
+            },
+            staleTime: 1000 * 60 * 5, // Consider data fresh for 5 minutes
+        }
+    );
 
-    // IntersectionObserver for infinite scroll
+    const threads = data?.pages.flatMap(page => page.data) ?? [];
+
+    // Enhanced intersection observer for infinite scroll
     useEffect(() => {
         if (!loaderRef.current || !hasNextPage || isLoading || isFetchingNextPage) return;
 
         const observer = new IntersectionObserver(
             (entries) => {
-                if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-
+                const [entry] = entries;
+                if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+                    console.log('Loading next page of threads...');
                     fetchNextPage();
                 }
             },
-            { threshold: 0.1 }
+            { 
+                threshold: 0.1,
+                rootMargin: '100px' // Start loading 100px before the element is visible
+            }
         );
 
         observer.observe(loaderRef.current);
@@ -83,6 +117,44 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
         };
     }, [fetchNextPage, hasNextPage, isLoading, isFetchingNextPage]);
 
+    // Monitor scroll position to determine if user is near bottom
+    const handleScroll = useCallback((event: Event) => {
+        const target = event.target as HTMLElement;
+        const { scrollTop, scrollHeight, clientHeight } = target;
+        const nearBottom = scrollTop + clientHeight >= scrollHeight - 100;
+        setIsNearBottom(nearBottom);
+    }, []);
+
+    useEffect(() => {
+        const scrollArea = scrollAreaRef.current;
+        if (scrollArea) {
+            const scrollViewport = scrollArea.querySelector('[data-radix-scroll-area-viewport]');
+            if (scrollViewport) {
+                scrollViewport.addEventListener('scroll', handleScroll);
+                return () => scrollViewport.removeEventListener('scroll', handleScroll);
+            }
+        }
+    }, [handleScroll]);
+
+    // Create optimistic thread for current conversation if it doesn't exist
+    const optimisticThread = currentThreadId && optimisticMessage && !threads.find(t => t.id === currentThreadId) ? {
+        id: currentThreadId,
+        title: optimisticMessage.content?.substring(0, 50) + '...' || 'New conversation',
+        userId: user?.id || '',
+        createdAt: optimisticMessage.createdAt,
+        updatedAt: optimisticMessage.updatedAt,
+        messages: [optimisticMessage]
+    } : null;
+
+    // Merge optimistic thread with real threads and sort properly
+    const allThreads = optimisticThread 
+        ? [optimisticThread, ...threads.filter(t => t.id !== currentThreadId)]
+        : threads;
+
+    // Sort threads by updated time (newest first)
+    const sortedThreads = allThreads.sort((a, b) => 
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
 
     return (
         <Sidebar variant="inset" className="flex flex-col h-full min-h-screen">
@@ -141,7 +213,7 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
                         </Link>
                     </SidebarGroupAction>
                     <SidebarGroupContent className="flex-1">
-                        <ScrollArea className="h-full">
+                        <ScrollArea className="h-full" ref={scrollAreaRef}>
                             <SidebarMenu>
                                 {!user ? (
                                     <SidebarMenuItem>
@@ -151,32 +223,55 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
                                     </SidebarMenuItem>
                                 ) : (
                                     <Fragment>
-                                        {threads.map((thread: getThreadsResponse["data"][0]) => {
+                                        {sortedThreads.map((thread: any) => {
+                                            const isActive = pathname.includes(thread.id);
+                                            const latestMessage = thread.messages?.[0];
+                                            const preview = latestMessage ? formatPreview(latestMessage.content) : "New conversation";
+                                            const isOptimistic = thread.id === optimisticThread?.id;
+                                            
                                             return (
                                                 <SidebarMenuItem key={thread.id}>
-                                                    <SidebarMenuButton asChild>
-                                                        <Link href={`/chat?threadId=${thread.id}`}>
-                                                            <span className="truncate max-w-[210px] block">{thread.title}</span>
+                                                    <SidebarMenuButton asChild className={isActive ? "bg-accent" : ""}>
+                                                        <Link href={`/chat?threadId=${thread.id}`} className="flex flex-col items-start gap-1 py-3 h-auto">
+                                                            <div className="flex items-center justify-between w-full">
+                                                                <span className="truncate max-w-[160px] block font-medium text-sm">
+                                                                    {thread.title}
+                                                                </span>
+                                                                <span className="text-xs text-muted-foreground shrink-0">
+                                                                    {formatTime(thread.updatedAt)}
+                                                                </span>
+                                                            </div>
+                                                            <span className="text-xs text-muted-foreground truncate max-w-[210px] block text-left">
+                                                                {isOptimistic && <span className="text-blue-500 mr-1">●</span>}
+                                                                {preview}
+                                                            </span>
                                                         </Link>
                                                     </SidebarMenuButton>
                                                 </SidebarMenuItem>
                                             )
-                                        })
-                                        }
+                                        })}
 
+                                        {/* Loading skeletons */}
                                         {isLoading && (
                                             <Fragment>
-                                                {Array.from({ length: 15 }).map((_, index) => (
-                                                    <SidebarMenuItem key={index}>
-                                                        <SidebarMenuButton>
-                                                            <Skeleton className="w-full h-10" />
+                                                {Array.from({ length: 8 }).map((_, index) => (
+                                                    <SidebarMenuItem key={`skeleton-${index}`}>
+                                                        <SidebarMenuButton className="h-auto py-3">
+                                                            <div className="flex flex-col gap-2 w-full">
+                                                                <div className="flex justify-between items-center">
+                                                                    <Skeleton className="h-4 w-24" />
+                                                                    <Skeleton className="h-3 w-12" />
+                                                                </div>
+                                                                <Skeleton className="h-3 w-36" />
+                                                            </div>
                                                         </SidebarMenuButton>
                                                     </SidebarMenuItem>
                                                 ))}
                                             </Fragment>
                                         )}
 
-                                        {threads.length === 0 && !isLoading && (
+                                        {/* Empty state */}
+                                        {sortedThreads.length === 0 && !isLoading && (
                                             <SidebarMenuItem>
                                                 <SidebarMenuButton>
                                                     <span className="text-muted-foreground">No chats yet</span>
@@ -184,11 +279,35 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
                                             </SidebarMenuItem>
                                         )}
 
+                                        {/* Error state */}
                                         {isError && !isLoading && (
                                             <SidebarMenuItem>
                                                 <SidebarMenuButton>
                                                     <span className="text-red-500">Error loading chats</span>
                                                 </SidebarMenuButton>
+                                            </SidebarMenuItem>
+                                        )}
+
+                                        {/* Infinite scroll loader */}
+                                        {hasNextPage && (
+                                            <SidebarMenuItem>
+                                                <div ref={loaderRef} className="py-2">
+                                                    {isFetchingNextPage ? (
+                                                        <SidebarMenuButton className="h-auto py-3">
+                                                            <div className="flex flex-col gap-2 w-full">
+                                                                <div className="flex justify-between items-center">
+                                                                    <Skeleton className="h-4 w-24" />
+                                                                    <Skeleton className="h-3 w-12" />
+                                                                </div>
+                                                                <Skeleton className="h-3 w-36" />
+                                                            </div>
+                                                        </SidebarMenuButton>
+                                                    ) : isNearBottom ? (
+                                                        <SidebarMenuButton onClick={() => fetchNextPage()}>
+                                                            <span className="text-muted-foreground text-sm">Load more...</span>
+                                                        </SidebarMenuButton>
+                                                    ) : null}
+                                                </div>
                                             </SidebarMenuItem>
                                         )}
                                     </Fragment>

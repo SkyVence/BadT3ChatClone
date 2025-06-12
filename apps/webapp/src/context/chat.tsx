@@ -46,6 +46,7 @@ interface StreamerContextType {
     messages: Message[];
     isMessagesLoading: boolean;
     refetchMessages: () => void;
+    optimisticMessage: Message | null;
 }
 
 const StreamerContext = createContext<StreamerContextType | undefined>(undefined);
@@ -59,6 +60,9 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [threadId, setThreadId] = useState<string | null>(null);
+    const [optimisticMessage, setOptimisticMessage] = useState<Message | null>(null);
+
+    const utils = api.useUtils();
 
     const sendMessageMutation = api.chat.sendMessageAndStartStream.useMutation({
         onSuccess: (data: any) => {
@@ -70,13 +74,22 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
             }
             setIsLoading(false);
             setError(null);
+            // Clear optimistic message since real message is now available
+            setOptimisticMessage(null);
+            
             // Refetch messages to get the latest state
             refetchMessages();
+            
+            // Optimistically update threads list
+            if (data.threadId) {
+                utils.threads.getThreads.invalidate();
+            }
         },
         onError: (err: any) => {
             setError(String(err));
             setIsLoading(false);
-            setMessageId(null); // Clear messageId on error
+            setMessageId(null);
+            setOptimisticMessage(null); // Clear optimistic message on error
         },
     });
 
@@ -84,13 +97,22 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
         enabled: !!threadId,
     });
 
-    const messages: Message[] = threadData?.data?.messages || [];
+    // Get messages from server and merge with optimistic message, then sort properly
+    const serverMessages: Message[] = threadData?.data?.messages || [];
+    const allMessages = optimisticMessage 
+        ? [...serverMessages, optimisticMessage]
+        : serverMessages;
+    
+    // Always sort messages by creation time to ensure proper chronological order
+    const messages = allMessages.sort((a, b) => 
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
 
     // Check for streaming messages and resume streaming when messages are loaded
     useEffect(() => {
-        if (!isMessagesLoading && messages.length > 0) {
+        if (!isMessagesLoading && serverMessages.length > 0) {
             // Find the most recent streaming message (should be assistant role)
-            const streamingMessage = messages
+            const streamingMessage = serverMessages
                 .filter(msg => msg.role === 'assistant' && msg.status === 'streaming')
                 .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                 [0];
@@ -100,14 +122,14 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
                 setMessageId(streamingMessage.id);
             } else if (!streamingMessage && messageId) {
                 // No streaming messages found but we have a messageId, clear it
-                const currentMessage = messages.find(msg => msg.id === messageId);
+                const currentMessage = serverMessages.find(msg => msg.id === messageId);
                 if (currentMessage && (currentMessage.status === 'complete' || currentMessage.status === 'error')) {
                     console.log('Current message is no longer streaming, clearing messageId');
                     setMessageId(null);
                 }
             }
         }
-    }, [messages, isMessagesLoading, messageId]);
+    }, [serverMessages, isMessagesLoading, messageId]);
 
     const sendMessage = useCallback((prompt: string, modelVersion?: string) => {
         if (!prompt.trim()) return;
@@ -116,6 +138,22 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
         setMessageId(null);
         setIsLoading(true);
         setError(null);
+
+        // Create optimistic user message
+        const optimisticUserMessage: Message = {
+            id: `optimistic-${Date.now()}`,
+            threadId: threadId || `temp-${Date.now()}`,
+            status: 'complete',
+            model: '',
+            role: 'user',
+            provider: '',
+            content: prompt,
+            error: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+
+        setOptimisticMessage(optimisticUserMessage);
 
         const selectedModel = models.find((m) => m.version === modelVersion) || models[8];
         sendMessageMutation.mutate({
@@ -130,6 +168,7 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
         setThreadId(null);
         setMessageId(null);
         setError(null);
+        setOptimisticMessage(null);
     }, []);
 
     const clearMessageId = useCallback(() => {
@@ -148,7 +187,8 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
             clearMessageId,
             messages, 
             isMessagesLoading,
-            refetchMessages
+            refetchMessages,
+            optimisticMessage
         }}>
             {children}
         </StreamerContext.Provider>
