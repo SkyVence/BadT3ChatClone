@@ -14,10 +14,12 @@ interface StreamingMessageData {
 
 function ChatContent({ children }: { children: React.ReactNode }) {
     const [open, setOpen] = useState(false);
-    const { sendMessage, isLoading } = useStreamer();
+    const { sendMessage, isLoading, model } = useStreamer();
 
     function handleSend(message: string) {
-        sendMessage(message);
+        if (model) {
+            sendMessage(message, model.version);
+        }
     }
 
     return (

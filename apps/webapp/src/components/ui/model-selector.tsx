@@ -45,8 +45,8 @@ const featureLabels: Record<ModelFeature, string> = {
 }
 
 interface ModelSelectorProps {
-    selectedModel: string
-    onSelectModel: (modelId: string) => void
+    selectedModel: ModelInfo | null
+    onSelectModel: (model: ModelInfo) => void
     onToggleFavorite?: (modelId: string, isFavorite: boolean) => void
 }
 
@@ -58,7 +58,7 @@ export function ModelSelector({ selectedModel, onSelectModel, onToggleFavorite }
     const [isAnimating, setIsAnimating] = useState(false)
 
     // Get the currently selected model
-    const currentModel = models.find((model) => model.id === selectedModel) || models[0]
+    const currentModel = selectedModel || models[0]
 
     // Filter models based on search and feature filters
     const filteredModels = models.filter((model) => {
@@ -93,11 +93,11 @@ export function ModelSelector({ selectedModel, onSelectModel, onToggleFavorite }
                 "relative rounded-lg p-3 cursor-pointer transition-colors min-h-[120px]",
                 "bg-card border border-border",
                 "hover:border-accent",
-                model.id === selectedModel && "border-primary bg-accent",
+                model.id === currentModel.id && "border-primary bg-accent",
                 model.isNew && "border-2 border-[#FFD700] shadow-[0_0_8px_2px_#FFD70080]"
             )}
             onClick={() => {
-                onSelectModel(model.id)
+                onSelectModel(model)
                 setOpen(false)
                 setShowAll(false)
             }}
@@ -175,10 +175,10 @@ export function ModelSelector({ selectedModel, onSelectModel, onToggleFavorite }
                                                 className={cn(
                                                     "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors",
                                                     "bg-card border border-border hover:border-accent",
-                                                    model.id === selectedModel && "border-primary bg-accent",
+                                                    model.id === currentModel.id && "border-primary bg-accent",
                                                 )}
                                                 onClick={() => {
-                                                    onSelectModel(model.id)
+                                                    onSelectModel(model)
                                                     setOpen(false)
                                                     setShowAll(false)
                                                 }}

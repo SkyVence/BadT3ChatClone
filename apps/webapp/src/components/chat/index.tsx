@@ -6,28 +6,21 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/chat/textarea-chat"
 import { Globe, Paperclip, ArrowUp, ChevronDown, Check, ChevronsUpDown } from "lucide-react"
-import { ModelSelector } from "../ui/model-selector"
+import { ModelSelector } from "@/components/ui/model-selector"
 import { models } from "@/models"
+import { useStreamer } from "@/context/chat"
 
 interface ChatInputProps {
     handleSend: (message: string) => void;
-    selectedModel?: string;
-    onModelChange?: (model: string) => void;
     isLoading?: boolean;
 }
 
 export function ChatInput({
     handleSend,
-    selectedModel: externalSelectedModel,
-    onModelChange,
     isLoading = false
 }: ChatInputProps) {
     const [message, setMessage] = useState("")
-    const [internalSelectedModel, setInternalSelectedModel] = useState("")
-    const [open, setOpen] = useState(false)
-
-    const selectedModel = externalSelectedModel ?? internalSelectedModel
-    const setSelectedModel = onModelChange ?? setInternalSelectedModel
+    const { model, setModel } = useStreamer()
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -38,7 +31,6 @@ export function ChatInput({
     }
 
     const getCurrentModelCapabilities = () => {
-        const model = models.find((m) => m.id === selectedModel)
         return model?.features || []
     }
 
@@ -59,7 +51,7 @@ export function ChatInput({
                 {/* Bottom toolbar */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <ModelSelector selectedModel={selectedModel} onSelectModel={setSelectedModel} />
+                        <ModelSelector selectedModel={model} onSelectModel={setModel} />
 
                         {/* Conditional Search button */}
                         {getCurrentModelCapabilities().includes("web") && (

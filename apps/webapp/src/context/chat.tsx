@@ -1,6 +1,6 @@
 "use client";
 
-import { models } from '@/models';
+import { ModelInfo, models } from '@/models';
 import { api } from '@/trpc/react';
 import { useTRPCErrorHandler } from '@/hooks/use-trpc-error-handler';
 import { toastUtils } from '@/lib/toast';
@@ -37,6 +37,8 @@ interface UseMessageStreamProps {
 }
 
 interface StreamerContextType {
+    model: ModelInfo | null;
+    setModel: (model: ModelInfo) => void;
     messageId: string | null;
     isLoading: boolean;
     error: string | null;
@@ -58,6 +60,7 @@ interface StreamerProviderProps {
 }
 
 export function StreamerProvider({ children }: StreamerProviderProps) {
+    const [model, setModel] = useState<ModelInfo | null>(models[0]);
     const [messageId, setMessageId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -99,7 +102,7 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
     });
 
     const { data: threadData, isLoading: isMessagesLoading, refetch: refetchMessages, error: threadError } = api.threads.threadContext.useQuery(
-        { threadId: threadId! }, 
+        { threadId: threadId! },
         {
             enabled: !!threadId,
         }
@@ -175,7 +178,8 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
         setOptimisticMessage(optimisticUserMessage);
 
         const selectedModel = models.find((m) => m.version === modelVersion) || models[0];
-        
+        console.log("selectedModel", selectedModel);
+
         if (!selectedModel) {
             toastUtils.error("No valid model selected");
             setIsLoading(false);
@@ -204,6 +208,8 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
 
     return (
         <StreamerContext.Provider value={{
+            model,
+            setModel,
             messageId,
             isLoading,
             error,
