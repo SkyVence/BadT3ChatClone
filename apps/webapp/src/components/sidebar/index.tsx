@@ -13,6 +13,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { Skeleton } from "../ui/skeleton";
 import type { getThreadsResponse } from "@/types/threads";
 import { useInfiniteQuery } from '@tanstack/react-query';
+import { usePathname } from "next/navigation";
 
 export function ChatMessages({ messages }: { messages: string[] }) {
     return (
@@ -36,6 +37,7 @@ export function ChatMessages({ messages }: { messages: string[] }) {
 export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
     const [hasMore, setHasMore] = useState(true);
     const { user, signOut } = useAuth();
+    const pathname = usePathname();
     const loaderRef = useRef<HTMLDivElement>(null);
     const {
         data,

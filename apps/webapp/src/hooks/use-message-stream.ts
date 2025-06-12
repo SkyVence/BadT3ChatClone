@@ -37,12 +37,12 @@ export function useMessageStream({
 
     // Debug: Track connection status changes
     useEffect(() => {
-        console.log(`🔌 Connection status changed for ${messageId}:`, isConnected);
+        console.log(`[useMessageStream] 🔌 Connection status changed for ${messageId}:`, isConnected);
     }, [isConnected, messageId]);
 
     // Stable cleanup function that doesn't change
     const cleanup = useCallback(() => {
-        console.log(`🧹 Cleanup called for ${messageId}`);
+        console.log(`[useMessageStream] 🧹 Cleanup called for ${messageId}`);
         if (eventSourceRef.current) {
             eventSourceRef.current.close();
             eventSourceRef.current = null;
@@ -60,23 +60,25 @@ export function useMessageStream({
     }, [messageId]); // Only depend on messageId
 
     const connect = useCallback(() => {
+        console.log(`[useMessageStream] connect() called for ${messageId} with status: ${status}`);
         if (!messageId) {
+            console.log(`[useMessageStream] connect() early return: no messageId`);
             return;
         }
 
         // Don't attempt SSE connection for already completed messages
         if (status === 'complete' || status === 'error') {
-            console.log(`⏭️ Skipping connection for completed message ${messageId}: ${status}`);
+            console.log(`[useMessageStream] ⏭️ Skipping connection for completed message ${messageId}: ${status}`);
             return;
         }
 
         // Prevent multiple simultaneous connections
         if (isConnectingRef.current || eventSourceRef.current) {
-            console.log(`⏸️ Connection already in progress for ${messageId}`);
+            console.log(`[useMessageStream] ⏸️ Connection already in progress for ${messageId}`);
             return;
         }
 
-        console.log(`🚀 Starting SSE connection for ${messageId}`);
+        console.log(`[useMessageStream] 🚀 Starting SSE connection for ${messageId}`);
         isConnectingRef.current = true;
 
         try {
@@ -84,7 +86,7 @@ export function useMessageStream({
             eventSourceRef.current = eventSource;
 
             eventSource.onopen = () => {
-                console.log(`✅ SSE onopen fired for ${messageId}`);
+                console.log(`[useMessageStream] ✅ SSE onopen fired for ${messageId}`);
                 setIsConnected(true);
                 setRetryCount(0);
                 isConnectingRef.current = false;
@@ -95,7 +97,7 @@ export function useMessageStream({
             };
 
             eventSource.onmessage = (event) => {
-                console.log(`📨 Message received for ${messageId}, setting connected`);
+                console.log(`[useMessageStream] 📨 Message received for ${messageId}, setting connected`);
                 // Always mark as connected when we receive any message
                 setIsConnected(true);
                 setRetryCount(0);
@@ -107,13 +109,13 @@ export function useMessageStream({
 
                 // Handle heartbeat messages (keep connection alive)
                 if (event.data.trim() === '' || event.data.startsWith(':')) {
-                    console.log(`💓 Heartbeat received for ${messageId}`);
+                    console.log(`[useMessageStream] 💓 Heartbeat received for ${messageId}`);
                     return;
                 }
 
                 try {
                     const data: StreamMessage = JSON.parse(event.data);
-                    console.log(`📝 Data message received for ${messageId}:`, data.type);
+                    console.log(`[useMessageStream] 📝 Data message received for ${messageId}:`, data.type, data);
                     onMessage?.(data);
 
                     switch (data.type) {
@@ -127,7 +129,7 @@ export function useMessageStream({
                             break;
 
                         case 'complete':
-                            console.log(`🏁 Stream complete for ${messageId}`);
+                            console.log(`[useMessageStream] 🏁 Stream complete for ${messageId}`);
                             setContent(data.fullContent || '');
                             setStatus('complete');
                             onComplete?.(data.fullContent || '');
@@ -135,7 +137,7 @@ export function useMessageStream({
                             break;
 
                         case 'error':
-                            console.log(`💥 Stream error for ${messageId}`);
+                            console.log(`[useMessageStream] 💥 Stream error for ${messageId}`);
                             setStatus('error');
                             setError(data.error || 'Unknown error');
                             onError?.(data.error || 'Unknown error');
@@ -143,12 +145,12 @@ export function useMessageStream({
                             break;
                     }
                 } catch (err) {
-                    console.error('Error parsing SSE message:', err);
+                    console.error('[useMessageStream] Error parsing SSE message:', err);
                 }
             };
 
             eventSource.onerror = (err) => {
-                console.log(`❌ SSE error for ${messageId}:`, err);
+                console.log(`[useMessageStream] ❌ SSE error for ${messageId}:`, err);
                 setIsConnected(false);
                 isConnectingRef.current = false;
 
@@ -166,7 +168,7 @@ export function useMessageStream({
                 // Only retry if the message is still streaming and we haven't exceeded max retries
                 const maxRetries = 3;
                 if (status === 'streaming' && retryCount < maxRetries) {
-                    console.log(`🔄 Scheduling retry ${retryCount + 1}/${maxRetries} for ${messageId}`);
+                    console.log(`[useMessageStream] 🔄 Scheduling retry ${retryCount + 1}/${maxRetries} for ${messageId}`);
                     // Exponential backoff with jitter
                     const baseDelay = 2000;
                     const jitter = Math.random() * 1000;
@@ -177,14 +179,14 @@ export function useMessageStream({
                         connect();
                     }, delay);
                 } else if (retryCount >= maxRetries) {
-                    console.log(`🚫 Max retries reached for ${messageId}`);
+                    console.log(`[useMessageStream] 🚫 Max retries reached for ${messageId}`);
                     setStatus('error');
                     setError('Failed to connect to stream after multiple attempts');
                 }
             };
 
         } catch (error) {
-            console.error('Failed to create EventSource for:', messageId, error);
+            console.error('[useMessageStream] Failed to create EventSource for:', messageId, error);
             isConnectingRef.current = false;
             setStatus('error');
             setError('Failed to establish connection');
@@ -197,15 +199,18 @@ export function useMessageStream({
 
     // Single effect to manage connection
     useEffect(() => {
-        console.log(`🔄 Effect triggered for ${messageId}, status: ${status}`);
-        connect();
-
-        // Return cleanup only on unmount or messageId change
+        console.log(`[useMessageStream] 🔄 Effect triggered for ${messageId}, status: ${status}`);
+        if (status === 'streaming') {
+            connect();
+        } else {
+            console.log(`[useMessageStream] Effect: Not connecting because status is '${status}' for ${messageId}`);
+        }
+        // Return cleanup only on unmount or messageId/status change
         return () => {
-            console.log(`🧽 Effect cleanup for ${messageId}`);
+            console.log(`[useMessageStream] 🧽 Effect cleanup for ${messageId}`);
             cleanup();
         };
-    }, [messageId]); // Only depend on messageId, not on connect or cleanup
+    }, [messageId, status]); // Depend on both messageId and status
 
     const reconnect = useCallback(() => {
         console.log(`🔄 Manual reconnect for ${messageId}`);
