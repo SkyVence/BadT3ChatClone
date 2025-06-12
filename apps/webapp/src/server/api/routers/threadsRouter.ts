@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { messages, threads } from "@/db/schema";
 import { protectedProcedure, router } from "@/server/api/trpc";
-import { count, desc, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq } from "drizzle-orm";
 import z from "zod";
 
 export const threadsRouter = router({
@@ -14,10 +14,10 @@ export const threadsRouter = router({
 
             await db.query.threads.findMany({
                 where: eq(threads.userId, ctx.session.user.id),
-                orderBy: [desc(threads.updatedAt)],
+                orderBy: [asc(threads.updatedAt)],
                 with: {
                     messages: {
-                        orderBy: [desc(messages.createdAt)],
+                        orderBy: [asc(messages.createdAt)],
                         limit: 3
                     },
                 },
@@ -39,4 +39,17 @@ export const threadsRouter = router({
             },
         };
     }),
+    threadContext: protectedProcedure.input(z.object({
+        threadId: z.string(),
+    })).query(async ({ ctx, input }) => {
+        const thread = await db.query.threads.findFirst({
+            where: and(eq(threads.id, input.threadId), eq(threads.userId, ctx.session.user.id)),
+            with: {
+                messages: true,
+            }
+        });
+        return {
+            data: thread
+        }
+    })
 })

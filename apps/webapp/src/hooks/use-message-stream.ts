@@ -29,6 +29,7 @@ export function useMessageStream({
     const [error, setError] = useState<string | null>(null);
     const [isConnected, setIsConnected] = useState(false);
     const [retryCount, setRetryCount] = useState(0);
+    const [hasReceivedInitialMessage, setHasReceivedInitialMessage] = useState(false);
 
     const eventSourceRef = useRef<EventSource | null>(null);
     const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -60,14 +61,15 @@ export function useMessageStream({
     }, [messageId]); // Only depend on messageId
 
     const connect = useCallback(() => {
-        console.log(`[useMessageStream] connect() called for ${messageId} with status: ${status}`);
+        console.log(`[useMessageStream] connect() called for ${messageId} with status: ${status}, hasReceivedInitial: ${hasReceivedInitialMessage}`);
         if (!messageId) {
             console.log(`[useMessageStream] connect() early return: no messageId`);
             return;
         }
 
-        // Don't attempt SSE connection for already completed messages
-        if (status === 'complete' || status === 'error') {
+        // Only skip connection for completed messages if we've already received the initial message from the server
+        // This ensures we always try the initial connection to get the actual server status
+        if (hasReceivedInitialMessage && (status === 'complete' || status === 'error')) {
             console.log(`[useMessageStream] ⏭️ Skipping connection for completed message ${messageId}: ${status}`);
             return;
         }
@@ -122,6 +124,8 @@ export function useMessageStream({
                         case 'initial':
                             setContent(data.fullContent || '');
                             setStatus(data.status as any || 'streaming');
+                            setHasReceivedInitialMessage(true);
+                            console.log(`[useMessageStream] 📋 Initial message received for ${messageId}, server status: ${data.status}`);
                             break;
 
                         case 'delta':
@@ -165,10 +169,14 @@ export function useMessageStream({
                     eventSourceRef.current = null;
                 }
 
-                // Only retry if the message is still streaming and we haven't exceeded max retries
+                // Retry logic: 
+                // - Always retry if we haven't received the initial message yet (to get server status)
+                // - Only retry if server says message is still streaming and we haven't exceeded max retries
                 const maxRetries = 3;
-                if (status === 'streaming' && retryCount < maxRetries) {
-                    console.log(`[useMessageStream] 🔄 Scheduling retry ${retryCount + 1}/${maxRetries} for ${messageId}`);
+                const shouldRetry = (!hasReceivedInitialMessage || status === 'streaming') && retryCount < maxRetries;
+
+                if (shouldRetry) {
+                    console.log(`[useMessageStream] 🔄 Scheduling retry ${retryCount + 1}/${maxRetries} for ${messageId} (hasInitial: ${hasReceivedInitialMessage}, status: ${status})`);
                     // Exponential backoff with jitter
                     const baseDelay = 2000;
                     const jitter = Math.random() * 1000;
@@ -195,11 +203,14 @@ export function useMessageStream({
                 connectionTimeoutRef.current = null;
             }
         }
-    }, [messageId, status, retryCount, onMessage, onComplete, onError, cleanup]); // Fixed dependencies
+    }, [messageId, status, retryCount, hasReceivedInitialMessage, onMessage, onComplete, onError, cleanup]); // Fixed dependencies
 
     // Single effect to manage connection
     useEffect(() => {
         console.log(`[useMessageStream] 🔄 Effect triggered for ${messageId}, status: ${status}`);
+        // Reset flag when messageId changes (new message)
+        setHasReceivedInitialMessage(false);
+
         if (status === 'streaming') {
             connect();
         } else {
@@ -217,6 +228,7 @@ export function useMessageStream({
         cleanup();
         setRetryCount(0);
         setError(null);
+        setHasReceivedInitialMessage(false); // Reset flag to allow reconnection
         // Small delay before reconnecting to avoid immediate reconnection
         setTimeout(() => {
             connect();
@@ -230,5 +242,6 @@ export function useMessageStream({
         isConnected,
         reconnect,
         retryCount,
+        hasReceivedInitialMessage, // For debugging
     };
 }

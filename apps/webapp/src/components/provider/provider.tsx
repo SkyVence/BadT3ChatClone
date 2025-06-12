@@ -3,7 +3,7 @@
 import { ThemeProvider } from "next-themes"
 import { Fragment, ReactNode } from "react"
 import { SidebarProvider } from "@/components/ui/sidebar"
-import { AuthProvider } from "./context"
+import { AuthProvider } from "@/context/auth"
 import { AppContent } from "@/components/content"
 import { usePathname } from "next/navigation"
 import { TRPCReactProvider } from "@/trpc/react"

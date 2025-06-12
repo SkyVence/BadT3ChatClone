@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { MessageSquare, Zap, Sparkles, Brain, MessageCircle, Rocket, TestTube, User } from "lucide-react";
-import { useAuth } from "@/components/provider/context";
+import { useAuth } from "@/context/auth";
 
 import { Fragment, useState } from "react";
 import { SignInDialog } from "@/components/dialog/sign-in";

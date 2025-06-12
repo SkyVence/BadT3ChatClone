@@ -1,5 +1,5 @@
 "use client"
-import { useAuth } from "@/components/provider/context"
+import { useAuth } from "@/context/auth"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"

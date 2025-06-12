@@ -2,7 +2,7 @@
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { Input } from "../ui/input";
 import { LogIn, LogOut, Plus, SearchIcon, SettingsIcon } from "lucide-react";
-import { useAuth } from "../provider/context";
+import { useAuth } from "../../context/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { ThemeToggle } from "../theme-toggle";
