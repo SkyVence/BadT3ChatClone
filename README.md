@@ -77,7 +77,7 @@ fast-chatapp/
 
 | Script             | Description                              |
 | ------------------ | ---------------------------------------- |
-| `pnpm dev`         | Start webapp in dev mode + drizzle stuio |
+| `pnpm dev`         | Start webapp in dev mode + drizzle studio |
 | `pnpm build`       | Build all apps                           |
 | `pnpm check-types` | Type check                               |
 | `pnpm db:push`     | Push schema to DB                        |
