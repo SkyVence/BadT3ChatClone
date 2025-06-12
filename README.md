@@ -2,7 +2,7 @@
 
 My attempt to build a t3chat clone for the t3 cloneathon.
 I used v0 for the ui with some small touch up on something. Nowhere near a good ui but you know...
-I learned a bit about SSE so i tried my hand at creating at making resumeable streams. It's working but sometimes it takes time to connect.
+I learned a bit about SSE so i tried my hand at making resumeable streams. It's working but sometimes it takes time to connect.
 
 Currently support only bring your own key, those keys are stored in a db and encrypted until used to create the actual ai sdk client for the provider. I plan on making local-storage api key support maybe before the end of the challenge.
 
