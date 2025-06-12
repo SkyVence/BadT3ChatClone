@@ -10,7 +10,7 @@ import { Fragment, useState, useRef, useEffect } from "react";
 import { SignInDialog } from "@/components/dialog/sign-in";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { toastUtils } from "@/lib/toast";
 
 function formatTime(dateString: string) {
     const date = new Date(dateString);
@@ -61,16 +61,9 @@ export default function HomePage() {
         },
         onError: (error: any) => {
             console.log('Homepage stream error, clearing messageId');
-            let description = '';
-            if (typeof error === 'string') {
-                description = error;
-            } else if (error && typeof error.message === 'string') {
-                description = error.message;
-            } else {
-                description = 'An unknown error occurred.';
-            }
-            toast.error("An error occurred while streaming the message.", {
-                description
+            toastUtils.error(error, {
+                title: "Stream Error",
+                description: "Failed to stream response. Please try again."
             });
             clearMessageId(); // Clear messageId on error
         },
@@ -331,12 +324,12 @@ export default function HomePage() {
                                                     </div>
                                                 </div>
                                             </div>
-                                            {/* Show timestamp if the message is completed */}
-                                            {displayStatus === 'complete' && currentStreamingMessage && (
-                                                <div className="text-xs text-muted-foreground text-left mt-2 px-1">
-                                                    {formatTime(currentStreamingMessage.createdAt)}
-                                                </div>
-                                            )}
+                                                    {/* Show timestamp if the message is completed */}
+                                                    {displayStatus === 'complete' && currentStreamingMessage && (
+                                                        <div className="text-xs text-muted-foreground text-left mt-2 px-1">
+                                                            {formatTime(currentStreamingMessage.createdAt)}
+                                                        </div>
+                                                    )}
                                         </div>
                                     </div>
                                 )}
