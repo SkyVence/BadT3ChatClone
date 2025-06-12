@@ -44,8 +44,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { LogOutIcon, TrashIcon, PlusIcon, KeyIcon, SunIcon, MoonIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { useTRPC } from "@/utils/trpc"
+import { useQueryClient } from "@tanstack/react-query"
+import { api } from "@/trpc/react"
 import { useTheme } from "next-themes"
 
 type ApiKey = {
@@ -63,7 +63,6 @@ export default function SettingsPage() {
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
     const [mounted, setMounted] = useState(false)
     const { theme, setTheme } = useTheme()
-    const trpc = useTRPC()
     const queryClient = useQueryClient()
 
     useEffect(() => {
@@ -75,9 +74,7 @@ export default function SettingsPage() {
         key: ""
     })
 
-    const apiKeys = useQuery(
-        trpc.settings.getApiKeys.queryOptions()
-    )
+    const apiKeys = api.settings.getApiKeys.useQuery()
 
     const handleDeleteAccount = () => {
         deleteUser();
@@ -94,37 +91,33 @@ export default function SettingsPage() {
 
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
-            setSelectedKeys(apiKeys.data?.map((key: ApiKey) => key.id) || [])
+            setSelectedKeys((apiKeys.data ?? []).map((key: ApiKey) => key.id))
         } else {
             setSelectedKeys([])
         }
     }
 
-    const createKeyMutation = useMutation(
-        trpc.settings.createApiKey.mutationOptions({
-            onSuccess: () => {
-                setIsCreateDialogOpen(false)
-                setNewKeyForm({ provider: "", key: "" })
-                // Refetch API keys after successful creation
-                queryClient.invalidateQueries({ queryKey: trpc.settings.getApiKeys.queryKey() })
-            },
-            onError: (error) => {
-                console.error("Failed to create API key:", error)
-            }
-        })
-    )
+    const createKeyMutation = api.settings.createApiKey.useMutation({
+        onSuccess: () => {
+            setIsCreateDialogOpen(false)
+            setNewKeyForm({ provider: "", key: "" })
+            // Refetch API keys after successful creation
+            apiKeys.refetch()
+        },
+        onError: (error) => {
+            console.error("Failed to create API key:", error)
+        }
+    })
 
-    const deleteKeyMutation = useMutation(
-        trpc.settings.deleteApiKey.mutationOptions({
-            onSuccess: () => {
-                // Refetch API keys after successful deletion
-                queryClient.invalidateQueries({ queryKey: trpc.settings.getApiKeys.queryKey() })
-            },
-            onError: (error) => {
-                console.error("Failed to delete API key:", error)
-            }
-        })
-    )
+    const deleteKeyMutation = api.settings.deleteApiKey.useMutation({
+        onSuccess: () => {
+            // Refetch API keys after successful deletion
+            apiKeys.refetch()
+        },
+        onError: (error) => {
+            console.error("Failed to delete API key:", error)
+        }
+    })
 
     const handleCreateKey = () => {
         createKeyMutation.mutate({
@@ -135,9 +128,7 @@ export default function SettingsPage() {
 
     const handleDeleteSelected = async () => {
         if (selectedKeys.length === 0) return
-
         try {
-            // Delete keys one by one since there's no bulk delete endpoint
             await Promise.all(
                 selectedKeys.map(keyId =>
                     deleteKeyMutation.mutateAsync({ id: keyId })
@@ -303,7 +294,6 @@ export default function SettingsPage() {
                                                                         <SelectItem value="openai">OpenAI</SelectItem>
                                                                         <SelectItem value="anthropic">Anthropic</SelectItem>
                                                                         <SelectItem value="google">Google</SelectItem>
-                                                                        <SelectItem value="cohere">Cohere</SelectItem>
                                                                     </SelectContent>
                                                                 </Select>
                                                             </div>
@@ -351,14 +341,14 @@ export default function SettingsPage() {
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
-                                                    {!apiKeys.data || apiKeys.data.length === 0 ? (
+                                                    {!apiKeys.data || (apiKeys.data as ApiKey[]).length === 0 ? (
                                                         <TableRow>
                                                             <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                                                                 No API keys found. Add your first API key to get started.
                                                             </TableCell>
                                                         </TableRow>
                                                     ) : (
-                                                        apiKeys.data.map((apiKey: ApiKey) => (
+                                                        (apiKeys.data as ApiKey[]).map((apiKey: ApiKey) => (
                                                             <TableRow key={apiKey.id}>
                                                                 <TableCell>
                                                                     <Checkbox

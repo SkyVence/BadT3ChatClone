@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useTRPC } from '@/utils/trpc';
+import { api } from '@/trpc/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,36 +12,29 @@ import { models } from '@/models';
 export default function ChatTestPage() {
     const [prompt, setPrompt] = useState('');
     const [currentMessageId, setCurrentMessageId] = useState<string | null>(null);
-    const trpc = useTRPC();
     const queryClient = useQueryClient();
 
-    const sendMessageMutation = useMutation(
-        trpc.chat.sendMessageAndStartStream.mutationOptions({
-            onSuccess: (data: any) => {
-                console.log('Message sent successfully:', data);
-                setCurrentMessageId(data.messageId);
-                setPrompt('');
-            },
-            onError: (error: any) => {
-                console.error('Error sending message:', error);
-            },
-        })
-    );
+    const sendMessageMutation = api.chat.sendMessageAndStartStream.useMutation({
+        onSuccess: (data: any) => {
+            console.log('Message sent successfully:', data);
+            setCurrentMessageId(data.messageId);
+            setPrompt('');
+        },
+        onError: (error: any) => {
+            console.error('Error sending message:', error);
+        },
+    });
 
-    const handleSendMessage = async () => {
+    const handleSendMessage = () => {
         if (!prompt.trim()) return;
 
         const selectedModel = models[8]; // Use first model for testing
 
-        try {
-            await sendMessageMutation.mutateAsync({
-                prompt,
-                model: selectedModel.version,
-                provider: selectedModel.provider as 'anthropic' | 'openai' | 'google',
-            });
-        } catch (error) {
-            console.error('Failed to send message:', error);
-        }
+        sendMessageMutation.mutate({
+            prompt,
+            model: selectedModel.version,
+            provider: selectedModel.provider as 'anthropic' | 'openai' | 'google',
+        });
     };
 
     return (
