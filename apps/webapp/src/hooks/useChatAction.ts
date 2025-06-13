@@ -26,7 +26,7 @@ export function useChatActions() {
 
     const utils = api.useUtils();
 
-    const sendMutation = api.chat.sendMessageAndStartStream.useMutation();
+    const sendMutation = api.stream.sendMessageAndStartStream.useMutation();
     const deleteMutation = api.threads.deleteThread.useMutation();
     const threadsQuery = api.threads.getThreads.useQuery({ limit: 15, offset: 0 }, { enabled: false });
     const threadCtxQuery = api.threads.threadContext.useQuery({ threadId: selectedThreadId ?? "" }, { enabled: false });
@@ -74,7 +74,7 @@ export function useChatActions() {
                         threadId: threadId,
                     } as any);
                 }
-                if (messageId) startStream(messageId);
+                if (messageId) startStream(messageId, threadId ?? selectedThreadId ?? "temp");
                 setStatus("streaming");
             } catch (error) {
                 setStatus("error");

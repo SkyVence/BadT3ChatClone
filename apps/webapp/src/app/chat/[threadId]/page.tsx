@@ -1,6 +1,7 @@
 'use client';
 
 import { useBetterChat } from "@/context/betterChatContext";
+import { useChatStore } from "@/lib/statemanager";
 import { useEffect, useRef } from "react";
 import { use } from "react";
 import { Button } from "@/components/ui/button";
@@ -22,10 +23,11 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
         isStreaming,
         selectThread,
         fetchThreadContext,
-        startStream,
-        stopStream,
+        resumeActiveStreams,
+        status,
         error,
     } = useBetterChat();
+    const setStatus = useChatStore(state => state.setStatus);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     // Async function to initialize thread
@@ -54,6 +56,16 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
     useEffect(() => {
         scrollToBottom();
     }, [messages, isLoadingThread, isStreaming]);
+
+    useEffect(() => {
+        // Auto-resume any streaming assistant messages after (re)load or on new messages
+        if (messages.some(m => m.role === 'assistant' && m.status === 'streaming')) {
+            resumeActiveStreams(messages);
+        } else if (status === 'streaming') {
+            // No streaming messages but status still streaming -> reset
+            setStatus('idle');
+        }
+    }, [messages, status]);
 
     // Derive currently-streaming assistant message (if any)
     const streamingMessage = messages
@@ -143,56 +155,65 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                         </div>
                     </div>
                 )}
-
                 {/* Streaming status */}
-                {streamingMessage && (
-                    <div className="pl-2">
-                        {displayStatus === 'streaming' && (
-                            <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                                <div className="flex items-center gap-2">
-                                    <div className="flex space-x-1">
-                                        <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div>
-                                        <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                                        <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                                    </div>
-                                    <span className="text-xs">
-                                        {streamingMessage?.content ? 'Thinking...' : 'Resuming stream...'}
-                                    </span>
-                                </div>
+                {status === "streaming" && (
+                    <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                            <div className="flex space-x-1">
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div>
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                             </div>
-                        )}
-                        {displayStatus === 'error' && (
-                            <div className="flex items-start gap-2 mt-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                                <AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
-                                <div className="flex-1">
-                                    <div className="text-sm font-medium text-destructive">
-                                        Error occurred
-                                    </div>
-                                    <div className="text-sm text-destructive/80 mt-1">
-                                        {error || 'An unknown error occurred while streaming the response.'}
-                                    </div>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => startStream(streamingMessage?.id ?? "")}
-                                        className="mt-2 h-7 px-3 text-xs"
-                                    >
-                                        <RefreshCw className="h-3 w-3 mr-1" />
-                                        Retry
-                                    </Button>
-                                </div>
+                            <span className="text-xs">
+                                {displayContent ? "Generating response..." : "Resuming stream…"}
+                            </span>
+                        </div>
+                    </div>
+                )}
+                {status === 'sending' && (
+                    <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                            <div className="flex space-x-1">
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div>
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                             </div>
-                        )}
-                        {displayStatus === 'complete' && displayContent && (
-                            <div className="mt-1">
-                                <div className="text-xs text-muted-foreground">
-                                    ✓ Response complete
-                                </div>
+                            <span className="text-xs">
+                                Sending message...
+                            </span>
+                        </div>
+                    </div>
+                )}
+                {status === 'error' && (
+                    <div className="flex items-start gap-2 mt-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                        <AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                            <div className="text-sm font-medium text-destructive">
+                                Error occurred
                             </div>
-                        )}
+                            <div className="text-sm text-destructive/80 mt-1">
+                                {error || 'An unknown error occurred while streaming the response.'}
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => resumeActiveStreams(messages)}
+                                className="mt-2 h-7 px-3 text-xs"
+                            >
+                                <RefreshCw className="h-3 w-3 mr-1" />
+                                Retry
+                            </Button>
+                        </div>
+                    </div>
+                )}
+                {status === 'idle' && displayContent && (
+                    <div className="mt-1">
+                        <div className="text-xs text-muted-foreground">
+                            ✓ Response complete
+                        </div>
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 } 

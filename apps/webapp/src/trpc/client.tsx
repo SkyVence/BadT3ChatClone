@@ -1,6 +1,6 @@
 import { createTRPCReact } from "@trpc/react-query";
 import { type AppRouter } from "@/server/api/root";
-import { createTRPCClient, httpBatchLink } from "@trpc/client";
+import { createTRPCClient, httpBatchLink, httpSubscriptionLink } from "@trpc/client";
 
 export const api = createTRPCReact<AppRouter>();
 export const trpc = createTRPCClient<AppRouter>({
@@ -9,4 +9,11 @@ export const trpc = createTRPCClient<AppRouter>({
             url: "/api/trpc",
         }),
     ],
-}); 
+});
+export const subscriptionClient = createTRPCClient<AppRouter>({
+    links: [
+        httpSubscriptionLink({
+            url: "/api/trpc",
+        }),
+    ],
+});

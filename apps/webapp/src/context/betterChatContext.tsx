@@ -33,7 +33,8 @@ interface BetterChatContextType {
     setModel: (model: ModelInfo) => void;
 
     /* -------- helpers from useChatStream -------- */
-    startStream: (messageId: string) => void;
+    startStream: (messageId: string, threadId: string) => void;
+    resumeActiveStreams: (messages: ThreadMessage[]) => void;
     stopStream: () => void;
 }
 
@@ -53,7 +54,7 @@ export function BetterChatProvider({ children }: { children: ReactNode }) {
     }, [allMessages, selectedThreadId]);
 
     const actions = useChatActions();
-    const { startStream, stopStream } = useChatStream();
+    const { startStream, stopStream, resumeActiveStreams } = useChatStream();
 
     const value: BetterChatContextType = {
         messages,
@@ -68,6 +69,7 @@ export function BetterChatProvider({ children }: { children: ReactNode }) {
         ...actions,
         startStream,
         stopStream,
+        resumeActiveStreams,
     };
 
     return (

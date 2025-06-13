@@ -277,30 +277,32 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
                                                         return (
                                                             <SidebarMenuItem key={thread.id} >
                                                                 <SidebarMenuButton asChild className={isActive ? "bg-accent/40 backdrop-blur-sm" : "static"} onMouseEnter={() => setIsMenuHover(true)} onMouseLeave={() => setIsMenuHover(false)}>
-                                                                    <div>
-                                                                        <SidebarMenuAction showOnHover={true} className="absolute left-5/6 top-1/2 -translate-y-1/2" onClick={(e) => {
-                                                                            e.preventDefault();
-                                                                            e.stopPropagation();
-                                                                            deleteThread(thread.id);
-                                                                        }}>
-                                                                            <motion.div
-                                                                                animate={{ x: isMenuHover ? 0 : 100 }}
-                                                                                transition={{ duration: 0.08, ease: "linear" }}
+                                                                    <Link href={`/chat/${thread.id}`} className="flex flex-col items-start gap-1  h-auto">
+                                                                        <div>
+                                                                            <SidebarMenuAction showOnHover={true} className="absolute left-5/6 top-1/2 -translate-y-1/2" onClick={(e) => {
+                                                                                e.preventDefault();
+                                                                                e.stopPropagation();
+                                                                                deleteThread(thread.id);
+                                                                            }}>
+                                                                                <motion.div
+                                                                                    animate={{ x: isMenuHover ? 0 : 100 }}
+                                                                                    transition={{ duration: 0.08, ease: "linear" }}
 
-                                                                            >
-                                                                                <div className="bg-gradient-to-l from-background/100 to-transparent rounded-sm p-1">
-                                                                                    <X className="size-5 text-foreground-accent/50 hover:text-foreground-accent" />
-                                                                                </div>
-                                                                            </motion.div>
-                                                                        </SidebarMenuAction>
-                                                                        <Link href={`/chat/${thread.id}`} className="flex flex-col items-start gap-1  h-auto">
+                                                                                >
+                                                                                    <div className="bg-gradient-to-l from-background/100 to-transparent rounded-sm p-1">
+                                                                                        <X className="size-5 text-foreground-accent/50 hover:text-foreground-accent" />
+                                                                                    </div>
+                                                                                </motion.div>
+                                                                            </SidebarMenuAction>
+
                                                                             <div className="flex items-center justify-between w-full">
                                                                                 <span className="truncate max-w-[200px] block font-medium text-sm">
                                                                                     {thread.title}
                                                                                 </span>
                                                                             </div>
-                                                                        </Link>
-                                                                    </div>
+
+                                                                        </div>
+                                                                    </Link>
                                                                 </SidebarMenuButton>
                                                             </SidebarMenuItem>
                                                         )

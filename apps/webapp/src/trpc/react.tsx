@@ -2,7 +2,7 @@
 
 import { type AppRouter } from "@/server/api/root";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createTRPCReact, loggerLink, unstable_httpBatchStreamLink } from "@trpc/react-query";
+import { createTRPCReact, loggerLink, httpSubscriptionLink, splitLink, httpBatchLink } from "@trpc/react-query";
 import { useState } from "react";
 
 const createQueryClient = () =>
@@ -36,13 +36,14 @@ export function TRPCReactProvider({ children }: { children: React.ReactNode }) {
                         process.env.NODE_ENV === "development" ||
                         (op.direction === "down" && op.result instanceof Error),
                 }),
-                unstable_httpBatchStreamLink({
-                    url: getBaseUrl() + "/api/trpc",
-                    headers: () => {
-                        const headers = new Headers();
-                        headers.set("x-trpc-source", "react");
-                        return headers;
-                    },
+                splitLink({
+                    condition: (op) => op.type === "subscription",
+                    true: httpSubscriptionLink({
+                        url: getBaseUrl() + "/api/trpc",
+                    }),
+                    false: httpBatchLink({
+                        url: getBaseUrl() + "/api/trpc",
+                    }),
                 }),
             ],
         })
