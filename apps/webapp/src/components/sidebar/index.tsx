@@ -1,5 +1,5 @@
 "use client"
-import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
+import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarSeparator } from "@/components/ui/sidebar";
 import { Input } from "../ui/input";
 import { LogIn, LogOut, Plus, SearchIcon, SettingsIcon } from "lucide-react";
 import { useAuth } from "../../context/auth";
@@ -61,7 +61,7 @@ function formatTime(dateString: string): string {
 }
 
 export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
-    const { user, signOut } = useAuth();
+    const { user, signOut, isLoading: isLoadingAuth } = useAuth();
     const pathname = usePathname();
     const { threadId: currentThreadId, optimisticMessage, startNewThread } = useStreamer();
     const loaderRef = useRef<HTMLDivElement>(null);
@@ -263,7 +263,13 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
                     <SidebarGroupContent className="flex-1">
                         <ScrollArea className="h-full" ref={scrollAreaRef}>
                             <SidebarMenu>
-                                {!user ? (
+                                {isLoadingAuth ? (
+                                    <SidebarMenuItem>
+                                        <SidebarMenuButton>
+                                            <Skeleton className="h-4 w-4" />
+                                        </SidebarMenuButton>
+                                    </SidebarMenuItem>
+                                ) : !user ? (
                                     <SidebarMenuItem>
                                         <SidebarMenuButton>
                                             <span className="text-muted-foreground">No chats yet</span>
@@ -274,7 +280,7 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
                                         {groupOrder.map(group => (
                                             groupedThreads[group].length > 0 && (
                                                 <Fragment key={group}>
-                                                    <SidebarGroupLabel className="px-4 pt-4 pb-1 text-xs uppercase tracking-wider opacity-70">
+                                                    <SidebarGroupLabel className="pt-2 tracking-wider opacity-90">
                                                         {group}
                                                     </SidebarGroupLabel>
                                                     {groupedThreads[group].map((thread: any) => {
@@ -286,13 +292,10 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
                                                         return (
                                                             <SidebarMenuItem key={thread.id}>
                                                                 <SidebarMenuButton asChild className={isActive ? "bg-accent" : ""}>
-                                                                    <Link href={`/chat/${thread.id}`} className="flex flex-col items-start gap-1 py-3 h-auto">
+                                                                    <Link href={`/chat/${thread.id}`} className="flex flex-col items-start gap-1  h-auto">
                                                                         <div className="flex items-center justify-between w-full">
-                                                                            <span className="truncate max-w-[160px] block font-medium text-sm">
+                                                                            <span className="truncate max-w-[200px] block font-medium text-sm">
                                                                                 {thread.title}
-                                                                            </span>
-                                                                            <span className="text-xs text-muted-foreground shrink-0">
-                                                                                {formatTime(thread.updatedAt)}
                                                                             </span>
                                                                         </div>
                                                                     </Link>

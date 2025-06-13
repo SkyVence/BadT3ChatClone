@@ -6,6 +6,10 @@ import { useMessageStream } from "@/hooks/use-message-stream";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ReactMarkdown from "react-markdown";
+import { MarkdownCodeBlock } from "@/components/markdown";
+import remarkGfm from "remark-gfm";
+import { matchesGlob } from "path";
 
 function formatTime(dateString: string) {
     const date = new Date(dateString);
@@ -98,7 +102,12 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                                             <div className="text-foreground">
                                                 <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
                                                     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                                                        {msg.content}
+                                                        <ReactMarkdown
+                                                            components={{ code: MarkdownCodeBlock }}
+                                                            remarkPlugins={[remarkGfm]}
+                                                        >
+                                                            {msg.content}
+                                                        </ReactMarkdown>
                                                     </div>
                                                 </div>
                                             </div>
