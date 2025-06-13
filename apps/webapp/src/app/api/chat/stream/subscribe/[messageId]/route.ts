@@ -27,7 +27,7 @@ export async function GET(
         });
 
         if (!session) {
-            return new Response('Unauthorized', { status: 401 });
+            throw new Response('Unauthorized', { status: 401 });
         }
 
         const { messageId } = await params;
@@ -44,11 +44,11 @@ export async function GET(
         });
 
         if (!message) {
-            return new Response('Message not found', { status: 404 });
+            throw new Response('Message not found', { status: 404 });
         }
 
         if (message.thread.userId !== userId) {
-            return new Response('Message not found', { status: 404 });
+            throw new Response('Message not found', { status: 404 });
         }
 
         console.log('SSE: New connection for message', {
@@ -191,7 +191,7 @@ export async function GET(
                             // Add connection and user info for debugging
                             parsedData.connectionId = connectionId;
                             parsedData.userId = userId;
-                            
+
                             const messageData = JSON.stringify(parsedData);
                             controller.enqueue(encoder.encode(`data: ${messageData}\n\n`));
                             console.log(`SSE: Redis message forwarded for ${connectionKey}:${connectionId}, type: ${parsedData.type}`);
@@ -275,6 +275,6 @@ export async function GET(
 
     } catch (error) {
         console.error('SSE subscription error:', error);
-        return new Response('Internal server error', { status: 500 });
+        throw new Response('Internal server error', { status: 500 });
     }
 } 
