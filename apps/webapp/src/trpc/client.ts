@@ -1,6 +1,10 @@
 import { createTRPCReact } from "@trpc/react-query";
 import { type AppRouter } from "@/server/api/root";
-import { createTRPCClient, httpBatchLink, httpSubscriptionLink } from "@trpc/client";
+import { createTRPCClient, createWSClient, httpBatchLink, httpSubscriptionLink } from "@trpc/client";
+
+const wsClient = createWSClient({
+    url: `ws://localhost:3001`,
+});
 
 export const api = createTRPCReact<AppRouter>();
 export const trpc = createTRPCClient<AppRouter>({
