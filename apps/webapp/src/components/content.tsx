@@ -3,16 +3,19 @@ import { SidebarApp } from "./sidebar";
 import { SidebarInset, SidebarTrigger } from "./ui/sidebar";
 import { ChatInput } from "./chat/chatInputBox";
 import { SignInDialog } from "./dialog/sign-in";
-import { useStreamer } from "@/context/chat";
+import { useBetterChat } from "@/context/betterChatContext";
 import { Toaster } from "@/components/ui/sonner";
 
 function ChatContent({ children }: { children: React.ReactNode }) {
     const [open, setOpen] = useState(false);
-    const { sendMessage, isLoading, model } = useStreamer();
+    const { send, isSending, model } = useBetterChat();
 
     function handleSend(message: string) {
+        if (!message.trim()) return;
         if (model) {
-            sendMessage(message, model.version);
+            send(message, { modelVersion: model.version });
+        } else {
+            send(message);
         }
     }
 
@@ -36,7 +39,7 @@ function ChatContent({ children }: { children: React.ReactNode }) {
                     <div className="max-w-4xl w-full mx-auto pointer-events-auto ">
                         <ChatInput
                             handleSend={handleSend}
-                            isLoading={isLoading}
+                            isLoading={isSending}
                         />
                     </div>
                 </div>

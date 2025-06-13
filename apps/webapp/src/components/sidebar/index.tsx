@@ -14,7 +14,7 @@ import { Skeleton } from "../ui/skeleton";
 import type { Thread } from "@/types/threads";
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { usePathname, useRouter } from "next/navigation";
-import { useStreamer } from "@/context/chat";
+import { useBetterChat } from "@/context/betterChatContext";
 import { Button } from "../ui/button";
 import { motion } from "framer-motion";
 
@@ -64,7 +64,7 @@ function formatTime(dateString: string): string {
 export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
     const { user, signOut, isLoading: isLoadingAuth } = useAuth();
     const pathname = usePathname();
-    const { threadId: currentThreadId, optimisticMessage, startNewThread, deleteThread } = useStreamer();
+    const { selectedThreadId: currentThreadId, startNewThread, deleteThread } = useBetterChat();
     const loaderRef = useRef<HTMLDivElement>(null);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const [isNearBottom, setIsNearBottom] = useState(false);
@@ -168,23 +168,8 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
         }
     }, [handleScroll]);
 
-    // Create optimistic thread for current conversation if it doesn't exist
-    const optimisticThread = currentThreadId && optimisticMessage && !allThreads.find(t => t.id === currentThreadId) ? {
-        id: currentThreadId,
-        title: optimisticMessage.content?.substring(0, 50) + '...' || 'New conversation',
-        userId: user?.id || '',
-        createdAt: optimisticMessage.createdAt,
-        updatedAt: optimisticMessage.updatedAt,
-        messages: [optimisticMessage]
-    } : null;
-
-    // Merge optimistic thread with real threads and sort properly
-    const threadsToDisplay = optimisticThread
-        ? [optimisticThread, ...allThreads.filter(t => t.id !== currentThreadId)]
-        : allThreads;
-
-    // Sort threads by updated time (newest first)
-    const sortedThreads = threadsToDisplay.sort((a: Thread, b: Thread) =>
+    // Use threads from API; no optimistic local thread (handled globally)
+    const sortedThreads = allThreads.sort((a: Thread, b: Thread) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
 

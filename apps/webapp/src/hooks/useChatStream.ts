@@ -1,3 +1,4 @@
+"use client";
 import { useState, useCallback } from "react";
 import { useChatStore } from "@/lib/statemanager";
 import { useMessageStream } from "@/hooks/use-message-stream";
@@ -8,15 +9,9 @@ import { useMessageStream } from "@/hooks/use-message-stream";
  * startStream / stopStream functions to UI components.
  */
 export function useChatStream() {
-    const {
-        upsertMessage,
-        setStatus,
-        setError,
-    } = useChatStore(state => ({
-        upsertMessage: state.upsertMessage,
-        setStatus: state.setStatus,
-        setError: state.setError,
-    }));
+    const upsertMessage = useChatStore(state => state.upsertMessage);
+    const setStatus = useChatStore(state => state.setStatus);
+    const setError = useChatStore(state => state.setError);
 
     const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
 
@@ -29,9 +24,10 @@ export function useChatStream() {
             if (msg.fullContent !== undefined) {
                 // Update / append the message in the store. We only touch the
                 // fields we know for sure; the reducer merges them.
+                const currentThreadId = useChatStore.getState().selectedThreadId;
                 upsertMessage({
                     id: msg.messageId,
-                    threadId: "", // optional, backend should reconcile
+                    threadId: currentThreadId ?? "temp",
                     content: msg.fullContent,
                     status: msg.type === "complete" ? "complete" : "streaming",
                     model: "",

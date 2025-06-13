@@ -1,3 +1,4 @@
++"use client";
 import { create } from "zustand";
 import { devtools, persist, subscribeWithSelector } from "zustand/middleware";
 import { ThreadMessage, ThreadSummary } from "@/types/message";
@@ -87,11 +88,23 @@ export const useChatStore = create<ChatState>()(
                     })),
 
                 selectThread: id => set({ selectedThreadId: id }),
-                setModel: model => set({ model }),
+                setModel: model => {
+                    const { providerIcon, ...rest } = model as any;
+                    set({ model: { ...rest, providerIcon: null } as any });
+                },
                 setStatus: status => set({ status }),
                 setError: error => set({ error }),
             })),
-            { name: "chat-store" },
+            {
+                name: "chat-store",
+                version: 2,
+                migrate: (persistedState: any, version) => {
+                    if (persistedState && persistedState.model && persistedState.model.providerIcon) {
+                        persistedState.model.providerIcon = null;
+                    }
+                    return persistedState;
+                },
+            },
         ),
     ),
 );

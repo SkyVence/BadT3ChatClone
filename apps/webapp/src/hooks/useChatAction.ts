@@ -1,35 +1,28 @@
++"use client";
+// client-side hook
+
 import { useChatStore } from "@/lib/statemanager";
 import { models } from "@/models";
 import { api } from "@/trpc/react";
 import { useCallback } from "react";
+import { useChatStream } from "@/hooks/useChatStream";
+import { v4 as uuid } from "uuid";
 
 export function useChatActions() {
-    const {
-        selectedThreadId,
-        model,
-        setStatus,
-        setError,
-        selectThread,
-        setModel,
-        upsertMessage,
-        setMessages,
-        setThreads,
-        upsertThread,
-        removeThread,
-    } = useChatStore(state => ({
-        selectedThreadId: state.selectedThreadId,
-        model: state.model,
-        /* writers */
-        setStatus: state.setStatus,
-        setError: state.setError,
-        selectThread: state.selectThread,
-        setModel: state.setModel,
-        upsertMessage: state.upsertMessage,
-        setMessages: state.setMessages,
-        setThreads: state.setThreads,
-        upsertThread: state.upsertThread,
-        removeThread: state.removeThread,
-    }));
+    // Select reactive primitives individually to avoid new object every render
+    const selectedThreadId = useChatStore(state => state.selectedThreadId);
+    const model = useChatStore(state => state.model);
+
+    // Non-reactive writer functions (stable references)
+    const setStatus = useChatStore(state => state.setStatus);
+    const setError = useChatStore(state => state.setError);
+    const selectThread = useChatStore(state => state.selectThread);
+    const setModel = useChatStore(state => state.setModel);
+    const upsertMessage = useChatStore(state => state.upsertMessage);
+    const setMessages = useChatStore(state => state.setMessages);
+    const setThreads = useChatStore(state => state.setThreads);
+    const upsertThread = useChatStore(state => state.upsertThread);
+    const removeThread = useChatStore(state => state.removeThread);
 
     const utils = api.useUtils();
 
@@ -37,6 +30,8 @@ export function useChatActions() {
     const deleteMutation = api.threads.deleteThread.useMutation();
     const threadsQuery = api.threads.getThreads.useQuery({ limit: 15, offset: 0 }, { enabled: false });
     const threadCtxQuery = api.threads.threadContext.useQuery({ threadId: selectedThreadId ?? "" }, { enabled: false });
+
+    const { startStream } = useChatStream();
 
     const send = useCallback(
         async (content: string, opts?: { modelVersion?: string }) => {
@@ -46,8 +41,24 @@ export function useChatActions() {
                 : model;
 
             setStatus("sending");
+
+            // optimistic user message
+            const localUserId = uuid();
+            upsertMessage({
+                id: localUserId,
+                threadId: selectedThreadId ?? "temp",
+                role: "user",
+                content: content,
+                status: "complete",
+                model: model.version,
+                provider: model.provider,
+                error: null,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            } as any);
+
             try {
-                const { threadId } = await sendMutation.mutateAsync({
+                const { threadId, messageId } = await sendMutation.mutateAsync({
                     threadId: selectedThreadId ?? undefined,
                     prompt: content,
                     model: mdl.version,
@@ -56,7 +67,14 @@ export function useChatActions() {
 
                 if (threadId && threadId !== selectedThreadId) {
                     selectThread(threadId);
+
+                    // update optimistic user message's threadId
+                    upsertMessage({
+                        id: localUserId,
+                        threadId: threadId,
+                    } as any);
                 }
+                if (messageId) startStream(messageId);
                 setStatus("streaming");
             } catch (error) {
                 setStatus("error");
@@ -88,11 +106,17 @@ export function useChatActions() {
         })));
     }, []);
 
+    const fetchThreadContext = useCallback(async (threadId: string) => {
+        if (!threadId) return;
+        // directly fetch via tRPC utils to avoid stale closure
+        const res = await utils.threads.threadContext.fetch({ threadId });
+        setMessages(res?.data?.messages ?? []);
+    }, []);
+
     const refetchThreadContext = useCallback(async () => {
         if (!selectedThreadId) return;
-        const res = await threadCtxQuery.refetch();
-        setMessages(res.data?.data.messages ?? []);
-    }, [selectedThreadId]);
+        await fetchThreadContext(selectedThreadId);
+    }, [selectedThreadId, fetchThreadContext]);
 
     return {
         send,
@@ -100,6 +124,7 @@ export function useChatActions() {
         startNewThread,
         refetchThreads,
         refetchThreadContext,
+        fetchThreadContext,
         setModel,
         selectThread,
     }

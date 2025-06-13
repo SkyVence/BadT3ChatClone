@@ -1,9 +1,12 @@
++"use client";
+// ^ This file relies on React client-side hooks (zustand, context)
 import { useChatActions } from "@/hooks/useChatAction";
 import { useChatStream } from "@/hooks/useChatStream";
 import { useChatStore } from "@/lib/statemanager";
 import { ModelInfo } from "@/models";
 import { ThreadMessage, ThreadSummary } from "@/types/message";
 import { createContext, useContext, type ReactNode } from "react";
+import { useMemo } from "react";
 
 interface BetterChatContextType {
     /* -------- read-only state -------- */
@@ -26,6 +29,7 @@ interface BetterChatContextType {
     selectThread: (threadId: string) => void;
     refetchThreads: () => Promise<void>;
     refetchThreadContext: () => Promise<void>;
+    fetchThreadContext: (threadId: string) => Promise<void>;
     setModel: (model: ModelInfo) => void;
 
     /* -------- helpers from useChatStream -------- */
@@ -36,21 +40,17 @@ interface BetterChatContextType {
 const BetterChatContext = createContext<BetterChatContextType | undefined>(undefined);
 
 export function BetterChatProvider({ children }: { children: ReactNode }) {
-    const {
-        messages,
-        threads,
-        selectedThreadId,
-        model,
-        status,
-        error,
-    } = useChatStore(state => ({
-        messages: state.currentMessages(),
-        threads: state.threads,
-        selectedThreadId: state.selectedThreadId,
-        model: state.model,
-        status: state.status,
-        error: state.error,
-    }));
+    const threads = useChatStore(state => state.threads);
+    const selectedThreadId = useChatStore(state => state.selectedThreadId);
+    const model = useChatStore(state => state.model);
+    const status = useChatStore(state => state.status);
+    const error = useChatStore(state => state.error);
+    const allMessages = useChatStore(state => state.messages);
+
+    const messages = useMemo(() => {
+        if (!selectedThreadId) return [];
+        return allMessages.filter(m => m.threadId === selectedThreadId);
+    }, [allMessages, selectedThreadId]);
 
     const actions = useChatActions();
     const { startStream, stopStream } = useChatStream();
