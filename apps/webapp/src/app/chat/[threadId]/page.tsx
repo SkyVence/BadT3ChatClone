@@ -60,6 +60,7 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
     const reconnect = stream.reconnect;
     const retryCount = stream.retryCount;
 
+
     return (
         <div className="flex flex-col min-h-screen bg-background">
             <div
