@@ -1,6 +1,5 @@
 "use client";
 import { useBetterChat } from "@/context/betterChatContext";
-import { useParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, AlertCircle } from "lucide-react";
@@ -13,7 +12,8 @@ function formatTime(dateString: string) {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function ChatPage({ children }: { children?: React.ReactNode }) {
+export default async function ChatPage({ params }: { params: Promise<{ threadId: string }> }) {
+    const threadId = (await params).threadId;
     const {
         messages,
         isLoadingThread,
@@ -24,8 +24,6 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
         stopStream,
         error,
     } = useBetterChat();
-    const params = useParams();
-    const threadId = params.threadId as string;
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -178,8 +176,6 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                     </div>
                 )}
             </div>
-            {/* Input area (children) pinned to bottom */}
-            {children}
         </div>
     );
 } 

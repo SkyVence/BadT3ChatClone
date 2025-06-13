@@ -18,7 +18,7 @@ function getConnectionKey(messageId: string, userId: string): string {
 
 export async function GET(
     req: NextRequest,
-    { params }: { params: { messageId: string } }
+    { params }: { params: Promise<{ messageId: string }> }
 ) {
     try {
         // Authenticate user
@@ -27,7 +27,7 @@ export async function GET(
         });
 
         if (!session) {
-            throw new Response('Unauthorized', { status: 401 });
+            return new Response('Unauthorized', { status: 401 });
         }
 
         const { messageId } = await params;
@@ -44,7 +44,7 @@ export async function GET(
         });
 
         if (!message) {
-            throw new Response('Message not found', { status: 404 });
+            return new Response('Message not found', { status: 404 });
         }
 
         if (message.thread.userId !== userId) {
