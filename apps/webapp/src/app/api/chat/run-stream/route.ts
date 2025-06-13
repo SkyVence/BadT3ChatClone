@@ -94,7 +94,7 @@ export async function POST(req: Request) {
                 selectedModel = aiProvider(model)
                 break;
             default:
-                return new Error(`Unsupported provider: ${provider}`);
+                throw new Error(`Unsupported provider: ${provider}`);
         }
 
         const contextHistory = await db.query.messages.findMany({
