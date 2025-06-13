@@ -42,7 +42,6 @@ export function useChatStream() {
                             } as any);
 
                             if (msg.type === "complete") {
-                                // We still call entry.unsubscribe() here, which is now the correct function
                                 entry.unsubscribe();
                                 streamsRef.current.delete(messageId);
                                 if (streamsRef.current.size === 0) setStatus("idle");
@@ -64,8 +63,6 @@ export function useChatStream() {
                     },
                 );
 
-                // --- THIS IS THE CORRECTED LINE ---
-                // Assign the method from the returned object, not the object itself.
                 entry.unsubscribe = unsub.unsubscribe;
                 streamsRef.current.set(messageId, entry);
             };
