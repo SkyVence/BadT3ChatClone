@@ -1,6 +1,8 @@
-"use client";
+'use client';
+
 import { useBetterChat } from "@/context/betterChatContext";
 import { useEffect, useRef } from "react";
+import { use } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, AlertCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -12,8 +14,8 @@ function formatTime(dateString: string) {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export default async function ChatPage({ params }: { params: Promise<{ threadId: string }> }) {
-    const threadId = (await params).threadId;
+export default function ChatPage({ params }: { params: Promise<{ threadId: string }> }) {
+    const { threadId } = use(params);
     const {
         messages,
         isLoadingThread,
@@ -26,16 +28,31 @@ export default async function ChatPage({ params }: { params: Promise<{ threadId:
     } = useBetterChat();
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        selectThread(threadId);
-        fetchThreadContext(threadId);
-    }, [threadId, fetchThreadContext]);
+    // Async function to initialize thread
+    const initializeThread = async (threadId: string) => {
+        try {
+            selectThread(threadId);
+            await fetchThreadContext(threadId);
+        } catch (error) {
+            console.error('Failed to initialize thread:', error);
+        }
+    };
 
-    // Auto-scroll to bottom when messages change
-    useEffect(() => {
+    // Async function to handle auto-scroll
+    const scrollToBottom = async () => {
         if (scrollRef.current) {
+            // Use requestAnimationFrame to ensure DOM is updated
+            await new Promise(resolve => requestAnimationFrame(resolve));
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
+    };
+
+    useEffect(() => {
+        initializeThread(threadId);
+    }, [threadId]);
+
+    useEffect(() => {
+        scrollToBottom();
     }, [messages, isLoadingThread, isStreaming]);
 
     // Derive currently-streaming assistant message (if any)
