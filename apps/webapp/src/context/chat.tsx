@@ -2,7 +2,6 @@
 
 import { ModelInfo, models } from '@/models';
 import { api } from '@/trpc/react';
-import { useTRPCErrorHandler } from '@/hooks/use-trpc-error-handler';
 import { toastUtils } from '@/lib/toast';
 import { createContext, useCallback, useContext, useState, useEffect, type ReactNode } from "react";
 
@@ -47,10 +46,12 @@ interface StreamerContextType {
     sendMessage: (prompt: string, modelVersion?: string) => void;
     startNewThread: () => void;
     clearMessageId: () => void;
-    messages: Message[];
     isMessagesLoading: boolean;
     refetchMessages: () => void;
     optimisticMessage: Message | null;
+    deleteThread: (threadId: string) => void;
+    setMessages: (messages: Message[]) => void;
+    messages: Message[];
 }
 
 const StreamerContext = createContext<StreamerContextType | undefined>(undefined);
@@ -66,9 +67,8 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
     const [error, setError] = useState<string | null>(null);
     const [threadId, setThreadId] = useState<string | null>(null);
     const [optimisticMessage, setOptimisticMessage] = useState<Message | null>(null);
-
+    const [messages, setMessages] = useState<Message[]>([]);
     const utils = api.useUtils();
-    const { handleStreamError } = useTRPCErrorHandler();
 
     const sendMessageMutation = api.chat.sendMessageAndStartStream.useMutation({
         onSuccess: (data: any) => {
@@ -93,12 +93,21 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
         },
         onError: (error) => {
             console.error('Send message error:', error);
-            handleStreamError(error);
             setIsLoading(false);
             setMessageId(null);
             setOptimisticMessage(null); // Clear optimistic message on error
             setError(null); // Error is handled by toast, don't store it locally
         },
+    });
+
+    const deleteThreadMutation = api.threads.deleteThread.useMutation({
+        onSuccess: () => {
+            utils.threads.getThreads.invalidate();
+            toastUtils.success("Thread deleted with id: " + threadId);
+        },
+        onError: () => {
+            toastUtils.error("Failed to delete thread");
+        }
     });
 
     const { data: threadData, isLoading: isMessagesLoading, refetch: refetchMessages, error: threadError } = api.threads.threadContext.useQuery(
@@ -112,9 +121,8 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
     useEffect(() => {
         if (threadError && threadId) {
             console.error('Thread context error:', threadError);
-            handleStreamError(threadError);
         }
-    }, [threadError, threadId, handleStreamError]);
+    }, [threadError, threadId]);
 
     // Get messages from server and merge with optimistic message, then sort properly
     const serverMessages: Message[] = threadData?.data?.messages || [];
@@ -123,7 +131,7 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
         : serverMessages;
 
     // Always sort messages by creation time to ensure proper chronological order
-    const messages = allMessages.sort((a, b) =>
+    const sortedMessages = allMessages.sort((a, b) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
 
@@ -148,6 +156,7 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
                 }
             }
         }
+        setMessages(sortedMessages);
     }, [serverMessages, isMessagesLoading, messageId]);
 
     const sendMessage = useCallback((prompt: string, modelVersion?: string) => {
@@ -206,6 +215,11 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
         setMessageId(null);
     }, []);
 
+    const deleteThread = useCallback((threadId: string) => {
+        deleteThreadMutation.mutate({ threadId });
+        utils.threads.threadContext.invalidate();
+    }, [deleteThreadMutation, utils.threads.threadContext]);
+
     return (
         <StreamerContext.Provider value={{
             model,
@@ -218,10 +232,12 @@ export function StreamerProvider({ children }: StreamerProviderProps) {
             sendMessage,
             startNewThread,
             clearMessageId,
-            messages,
             isMessagesLoading,
             refetchMessages,
-            optimisticMessage
+            optimisticMessage,
+            deleteThread,
+            setMessages,
+            messages
         }}>
             {children}
         </StreamerContext.Provider>

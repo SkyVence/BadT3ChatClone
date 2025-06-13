@@ -17,64 +17,12 @@ type CodeProps = {
     [key: string]: any;
 };
 
-function DownloadCodeButton({ filename, setFilename, downloadCode, isOpenDialog, setIsOpenDialog }: {
-    filename: string;
-    setFilename: (v: string) => void;
-    downloadCode: (filename: string) => void;
-    isOpenDialog: boolean;
-    setIsOpenDialog: (v: boolean) => void;
-}) {
-    return (
-        <Dialog open={isOpenDialog} onOpenChange={setIsOpenDialog} >
-            <DialogTrigger asChild>
-                <Button variant="outline" className="size-7 border-none">
-                    <DownloadIcon className="h-4 w-4" />
-                </Button>
-            </DialogTrigger>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Save Code Snippet to file</DialogTitle>
-                    <DialogDescription>
-                        Save the code snippet to a file.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="flex flex-col gap-2">
-                    <Input
-                        type="text"
-                        placeholder="Enter a filename"
-                        value={filename}
-                        onChange={(e) => setFilename(e.target.value)}
-                    />
-                </div>
-                <div className="flex flex-row gap-2 justify-end">
-                    <Button type="button" onClick={() => downloadCode(filename)}>
-                        Save
-                    </Button>
-                    <Button variant="outline" onClick={() => {
-                        setFilename('')
-                        setIsOpenDialog(false)
-                    }}>
-                        Cancel
-                    </Button>
-                </div>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
 export function MarkdownCodeBlock({ node, inline, className, children, ...props }: CodeProps) {
     const codeString = String(children).replace(/\n$/, '');
     const match = /language-(\w+)/.exec(className || '');
     const language = match ? match[1] : 'plaintext';
 
-    // HACKY SOLUTION: If it's a block code, but only contains one line,
-    // and potentially matches a 'path-like' pattern, treat it as inline.
-    // This is risky and might lead to unexpected behavior.
-    const isSingleLineCodeBlock = !inline && codeString.includes('/') && !codeString.includes('\n');
-
-    if (inline || isSingleLineCodeBlock) {
-        // You might want to apply specific styling here for paths
-        // or just render it as a simple inline code.
+    if (inline) {
         return <code className="bg-muted p-1 rounded-md text-sm font-mono text-blue-400" {...props}>{codeString}</code>;
     }
 
@@ -101,6 +49,7 @@ export function MarkdownCodeBlock({ node, inline, className, children, ...props 
         a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
+        setIsOpenDialog(false);
     }
 
     return (

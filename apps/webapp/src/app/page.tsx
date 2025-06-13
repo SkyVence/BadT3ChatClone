@@ -5,7 +5,6 @@ import { MessageSquare, Zap, Sparkles, Brain, MessageCircle, Rocket, TestTube, U
 import { useAuth } from "@/context/auth";
 import { useStreamer } from "@/context/chat";
 import { useMessageStream } from "@/hooks/use-message-stream";
-import { ChatInput } from "@/components/chat/index";
 import { Fragment, useState, useRef, useEffect } from "react";
 import { SignInDialog } from "@/components/dialog/sign-in";
 import { cn } from "@/lib/utils";
@@ -19,7 +18,7 @@ function formatTime(dateString: string) {
 
 export default function HomePage() {
     const { user } = useAuth();
-    const { messageId, sendMessage, isLoading, messages, threadId, startNewThread, clearMessageId } = useStreamer();
+    const { messageId, messages, threadId, startNewThread, clearMessageId } = useStreamer();
     const [open, setOpen] = useState(false);
     const [showChat, setShowChat] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);

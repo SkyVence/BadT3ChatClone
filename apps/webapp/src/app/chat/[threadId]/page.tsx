@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import { MarkdownCodeBlock } from "@/components/markdown";
 import remarkGfm from "remark-gfm";
-import { matchesGlob } from "path";
+import { Message } from "@/types/threads";
 
 function formatTime(dateString: string) {
     const date = new Date(dateString);
@@ -17,7 +17,7 @@ function formatTime(dateString: string) {
 }
 
 export default function ChatPage({ children }: { children?: React.ReactNode }) {
-    const { messageId, setThreadId, messages, isMessagesLoading, clearMessageId } = useStreamer();
+    const { messageId, setThreadId, isMessagesLoading, clearMessageId, setMessages, messages } = useStreamer();
     const params = useParams();
     const threadId = params.threadId as string;
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -45,15 +45,34 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
         onComplete: (fullContent) => {
             console.log('Stream completed, clearing messageId');
             clearMessageId(); // Clear messageId when stream completes
+            let newMessages = [...messages, {
+                id: messageId,
+                content: fullContent,
+                role: 'assistant',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            } as Message]
+            setMessages(newMessages);
+            displayContent = "";
         },
         onError: (error) => {
             console.log('Stream error, clearing messageId');
             clearMessageId(); // Clear messageId on error
+            let newMessages = [...messages, {
+                id: messageId,
+                content: "",
+                error: error,
+                role: 'assistant',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            } as Message]
+            setMessages(newMessages);
+            displayContent = "";
         },
     });
 
     // Use the stream content if available, otherwise fall back to the message content
-    const displayContent = stream.content || initialStreamingContent;
+    let displayContent = stream.content || initialStreamingContent;
     const displayStatus = stream.status || initialStreamingStatus;
     const displayError = stream.error;
     const isConnected = stream.isConnected;
@@ -70,13 +89,6 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                 {isMessagesLoading ? (
                     <div className="flex items-center justify-center py-8">
                         <div className="text-muted-foreground">Loading messages...</div>
-                    </div>
-                ) : messages.length === 0 ? (
-                    <div className="flex items-center justify-center py-8">
-                        <div className="text-center">
-                            <h3 className="text-lg font-medium text-foreground mb-2">Start a conversation</h3>
-                            <p className="text-muted-foreground">Ask me anything to get started!</p>
-                        </div>
                     </div>
                 ) : (
                     // Display messages in chronological order (oldest to newest)
@@ -96,15 +108,15 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                                 </div>
                             ) : (
                                 // Assistant message without bubble
-                                <div className="max-w-[85%] lg:max-w-[75%]">
+                                <div className="max-w-[100%] lg:max-w-[75%]">
                                     {/* Don't render the content if this message is currently streaming - let the streaming component handle it */}
                                     {msg.id === messageId ? null : (
                                         <>
                                             <div className="text-foreground">
-                                                <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
+                                                <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-div:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
                                                     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
                                                         <ReactMarkdown
-                                                            components={{ code: MarkdownCodeBlock }}
+                                                            components={{ code: MarkdownCodeBlock, p: "div" }}
                                                             remarkPlugins={[remarkGfm]}
                                                         >
                                                             {msg.content}
@@ -126,11 +138,16 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                 {/* Streaming message bubble - appears after the last message or replaces the streaming message */}
                 {messageId && displayContent && (
                     <div className="flex justify-start">
-                        <div className="max-w-[85%] lg:max-w-[75%]">
+                        <div className="max-w-[100%] lg:max-w-[75%]">
                             <div className="text-foreground">
                                 <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
                                     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed min-h-[20px]">
-                                        {displayContent}
+                                        <ReactMarkdown
+                                            components={{ code: MarkdownCodeBlock, p: "div" }}
+                                            remarkPlugins={[remarkGfm]}
+                                        >
+                                            {displayContent}
+                                        </ReactMarkdown>
                                     </div>
                                 </div>
                             </div>
@@ -143,6 +160,14 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                         </div>
                     </div>
                 )}
+
+
+
+
+
+
+
+
 
                 {/* Streaming status */}
                 {messageId && (

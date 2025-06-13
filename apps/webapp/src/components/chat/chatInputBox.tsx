@@ -35,8 +35,8 @@ export function ChatInput({
     }
 
     return (
-        <div className="relative bg-muted rounded-lg border-t border-l border-r border-border p-1">
-            <div className="relative bg-card rounded-lg border-t border-l border-r border-border p-4">
+        <div className="relative bg-muted/50 rounded-lg border-t border-l border-r border-border p-1">
+            <div className="relative bg-card/30 backdrop-blur-sm rounded-lg border-t border-l border-r border-border p-4">
                 {/* Main input area */}
                 <div className="mb-4">
                     <Textarea

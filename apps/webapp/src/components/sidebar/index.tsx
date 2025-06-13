@@ -1,7 +1,7 @@
 "use client"
-import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarSeparator } from "@/components/ui/sidebar";
+import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuAction, SidebarMenuButton, SidebarMenuItem, SidebarSeparator } from "@/components/ui/sidebar";
 import { Input } from "../ui/input";
-import { LogIn, LogOut, Plus, SearchIcon, SettingsIcon } from "lucide-react";
+import { LogIn, LogOut, Plus, SearchIcon, SettingsIcon, Trash2, X } from "lucide-react";
 import { useAuth } from "../../context/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../ui/dropdown-menu";
@@ -16,6 +16,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { usePathname, useRouter } from "next/navigation";
 import { useStreamer } from "@/context/chat";
 import { Button } from "../ui/button";
+import { motion } from "framer-motion";
 
 export function ChatMessages({ messages }: { messages: string[] }) {
     return (
@@ -63,10 +64,11 @@ function formatTime(dateString: string): string {
 export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
     const { user, signOut, isLoading: isLoadingAuth } = useAuth();
     const pathname = usePathname();
-    const { threadId: currentThreadId, optimisticMessage, startNewThread } = useStreamer();
+    const { threadId: currentThreadId, optimisticMessage, startNewThread, deleteThread } = useStreamer();
     const loaderRef = useRef<HTMLDivElement>(null);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const [isNearBottom, setIsNearBottom] = useState(false);
+    const [isMenuHover, setIsMenuHover] = useState(false);
 
     const [offset, setOffset] = useState(0);
     const [allThreads, setAllThreads] = useState<Thread[]>([]);
@@ -280,25 +282,40 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
                                         {groupOrder.map(group => (
                                             groupedThreads[group].length > 0 && (
                                                 <Fragment key={group}>
-                                                    <SidebarGroupLabel className="pt-2 tracking-wider opacity-90">
+                                                    <SidebarGroupLabel className="pt-2 tracking-wider">
                                                         {group}
                                                     </SidebarGroupLabel>
                                                     {groupedThreads[group].map((thread: any) => {
                                                         const isActive = pathname === `/chat/${thread.id}`;
                                                         const latestMessage = thread.messages?.[0];
-                                                        const preview = latestMessage ? formatPreview(latestMessage.content) : "New conversation";
-                                                        const isOptimistic = thread.id === optimisticThread?.id;
 
                                                         return (
-                                                            <SidebarMenuItem key={thread.id}>
-                                                                <SidebarMenuButton asChild className={isActive ? "bg-accent" : ""}>
-                                                                    <Link href={`/chat/${thread.id}`} className="flex flex-col items-start gap-1  h-auto">
-                                                                        <div className="flex items-center justify-between w-full">
-                                                                            <span className="truncate max-w-[200px] block font-medium text-sm">
-                                                                                {thread.title}
-                                                                            </span>
-                                                                        </div>
-                                                                    </Link>
+                                                            <SidebarMenuItem key={thread.id} >
+                                                                <SidebarMenuButton asChild className={isActive ? "bg-accent/40 backdrop-blur-sm" : "static"} onMouseEnter={() => setIsMenuHover(true)} onMouseLeave={() => setIsMenuHover(false)}>
+                                                                    <div>
+                                                                        <SidebarMenuAction showOnHover={true} className="absolute left-5/6 top-1/2 -translate-y-1/2" onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            e.stopPropagation();
+                                                                            deleteThread(thread.id);
+                                                                        }}>
+                                                                            <motion.div
+                                                                                animate={{ x: isMenuHover ? 0 : 100 }}
+                                                                                transition={{ duration: 0.08, ease: "linear" }}
+
+                                                                            >
+                                                                                <div className="bg-gradient-to-l from-background/100 to-transparent rounded-sm p-1">
+                                                                                    <X className="size-5 text-foreground-accent/50 hover:text-foreground-accent" />
+                                                                                </div>
+                                                                            </motion.div>
+                                                                        </SidebarMenuAction>
+                                                                        <Link href={`/chat/${thread.id}`} className="flex flex-col items-start gap-1  h-auto">
+                                                                            <div className="flex items-center justify-between w-full">
+                                                                                <span className="truncate max-w-[200px] block font-medium text-sm">
+                                                                                    {thread.title}
+                                                                                </span>
+                                                                            </div>
+                                                                        </Link>
+                                                                    </div>
                                                                 </SidebarMenuButton>
                                                             </SidebarMenuItem>
                                                         )
