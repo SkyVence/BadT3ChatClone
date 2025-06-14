@@ -8,6 +8,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { visit } from "unist-util-visit";
 import React from "react";
+import { MarkdownCodeBlock } from "@/components/markdown";
 
 function formatTime(dateString: string) {
     const date = new Date(dateString);
@@ -74,7 +75,7 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
     const markdownComponents = useMemo(() => {
         const CodeRenderer = ({ inline, className = "", children, ...props }: any) => {
             const codeText = Array.isArray(children) ? children.join("") : children;
-            // Inline code
+            // Inline code styling
             if (inline) {
                 return (
                     <code
@@ -85,22 +86,26 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                     </code>
                 );
             }
-            // Block code (inside <pre>)
-            return (
-                <code className={`text-sm font-mono ${className}`} {...props}>
-                    {codeText}
-                </code>
-            );
+            // For block code, we render nothing here because PreRenderer will take over.
+            return null;
         };
 
-        const PreRenderer = ({ children, ...props }: any) => (
-            <pre
-                className="my-2 rounded-md bg-muted overflow-auto border border-border p-3"
-                {...props}
-            >
-                {children}
-            </pre>
-        );
+        const PreRenderer = ({ children, ...props }: any) => {
+            // children should be a single <code> element (our CodeRenderer output is null for block, but default fallback code element may still be present)
+            const codeElem: any = Array.isArray(children) ? children[0] : children;
+            const className = codeElem?.props?.className || "";
+            // Extract code string from codeElem's children
+            let codeStr = "";
+            const raw = codeElem?.props?.children;
+            if (typeof raw === "string") codeStr = raw;
+            else if (Array.isArray(raw)) codeStr = raw.join("");
+
+            return (
+                <MarkdownCodeBlock className={className} {...props}>
+                    {codeStr}
+                </MarkdownCodeBlock>
+            );
+        };
 
         return {
             code: CodeRenderer,
