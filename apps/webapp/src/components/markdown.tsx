@@ -2,7 +2,7 @@
 import { cn } from "@/lib/utils";
 import { ReactNode, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { a11yDark, dark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { a11yDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { CheckIcon, DownloadIcon } from "lucide-react";
 import { CopyIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "./ui/dialog";
@@ -21,6 +21,8 @@ export function MarkdownCodeBlock({ node, inline, className, children, ...props 
     const codeString = String(children).replace(/\n$/, '');
     const match = /language-(\w+)/.exec(className || '');
     const language = match ? match[1] : 'plaintext';
+
+    // const isSingleLineCodeBlock = !inline && codeString.includes('/') && !codeString.includes('\n');
 
     if (inline) {
         return <code className="bg-muted p-1 rounded-md text-sm font-mono text-blue-400" {...props}>{codeString}</code>;

@@ -78,6 +78,43 @@ async function getUserApiKey({ db, userId, provider, decrypt }: getUserApiKeyPro
     return decrypt(getApiKey.hashedKey);
 }
 
+async function* streamingDedent(stream: ReadableStream<string>): AsyncGenerator<string> {
+    let minIndent: number | null = null;
+    let lineBuffer = "";
+    const reader = stream.getReader();
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+                if (lineBuffer) yield lineBuffer; // Yield any remaining buffer
+                break;
+            }
+
+            lineBuffer += value;
+            const lines = lineBuffer.split("\n");
+            lineBuffer = lines.pop() || ""; // Keep the last partial line in the buffer
+
+            for (const line of lines) {
+                if (minIndent === null && line.trim() !== "") {
+                    // This is the first contentful line. Determine the indent.
+                    const match = line.match(/^\s+/);
+                    minIndent = match ? match[0].length : 0;
+                }
+
+                if (minIndent !== null) {
+                    yield line.substring(minIndent) + "\n";
+                } else {
+                    // Still waiting for the first contentful line
+                    yield line + "\n";
+                }
+            }
+        }
+    } finally {
+        reader.releaseLock();
+    }
+}
+
 
 async function createMessages({ db, threadId, prompt, model, provider }: createMessagesProps) {
     const [userMessage] = await db.insert(messages).values({
@@ -127,7 +164,7 @@ async function getContextHistory({ db, threadId, assistantMessageId }: getContex
 
 async function streamAndUpdateMessage({ stream, db, assistantMessage, publisher }: streamAndUpdateMessageProps) {
     let fullResponse = "";
-    for await (const delta of stream.textStream) {
+    for await (const delta of streamingDedent(stream.textStream)) {
         fullResponse += delta;
         await db.update(messages).set({
             content: fullResponse,

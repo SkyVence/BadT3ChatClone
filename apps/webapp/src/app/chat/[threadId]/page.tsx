@@ -8,10 +8,22 @@ import ReactMarkdown from "react-markdown";
 import { MarkdownCodeBlock } from "@/components/markdown";
 import remarkGfm from "remark-gfm";
 import React from "react";
+import { visit } from "unist-util-visit";
 
 function formatTime(dateString: string) {
     const date = new Date(dateString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function remarkFixBoldedCode() {
+    return (tree: any) => {
+        visit(tree, "text", (node) => {
+            const regex = /\*\*\`(.+?)\`\*\*/g;
+            if (regex.test(node.value)) {
+                node.value = node.value.replace(regex, "`$1`");
+            }
+        });
+    };
 }
 
 export default function ChatPage({ params }: { params: Promise<{ threadId: string }> }) {
@@ -95,8 +107,11 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                                                 <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-div:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
                                                     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
                                                         <ReactMarkdown
-                                                            components={{ code: MarkdownCodeBlock, p: "div" }}
-                                                            remarkPlugins={[remarkGfm]}
+                                                            components={{
+                                                                code: (props: any) => <MarkdownCodeBlock {...props}>{props.children}</MarkdownCodeBlock>,
+                                                                p: "div"
+                                                            }}
+                                                            remarkPlugins={[remarkGfm, remarkFixBoldedCode]}
                                                         >
                                                             {msg.content}
                                                         </ReactMarkdown>
@@ -122,8 +137,11 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                                 <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
                                     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed min-h-[20px]">
                                         <ReactMarkdown
-                                            components={{ code: MarkdownCodeBlock, p: "div" }}
-                                            remarkPlugins={[remarkGfm]}
+                                            components={{
+                                                code: (props: any) => <MarkdownCodeBlock {...props}>{props.children}</MarkdownCodeBlock>,
+                                                p: "div"
+                                            }}
+                                            remarkPlugins={[remarkGfm, remarkFixBoldedCode]}
                                         >
                                             {displayContent}
                                         </ReactMarkdown>
