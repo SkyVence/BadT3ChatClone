@@ -1,202 +1,152 @@
-Creating a WebSocket messaging app in Java involves a server-side component (which handles connections and messages) and a client-side component (which connects and sends/receives messages).
+Okay, let's create a simple server/client messaging application in Java. This will be a console-based application to keep things focused on the networking logic.
 
-We'll use the standard Java API for WebSockets (JSR 356, `javax.websocket`).
+**Core Concepts:**
+
+1.  **Sockets:** The fundamental building blocks for network communication.
+    *   `ServerSocket`: Used by the server to listen for incoming client connections.
+    *   `Socket`: Used by both the server (to handle a specific client connection) and the client (to connect to the server).
+2.  **Input/Output Streams:** Once a connection is established via a `Socket`, you get `InputStream` and `OutputStream` to send and receive data. We'll wrap these in `BufferedReader` and `PrintWriter` for easier text-based communication.
+3.  **Multithreading:** This is crucial for the server. A server needs to handle multiple clients simultaneously. Each client connection will run in its own thread so that one client doesn't block others. The client also needs a separate thread to read messages from the server while the user is typing.
 
 ---
 
-## 1. Server-Side (Java)
+### Project Structure
 
-This will be a simple chat server. You'll need a Java EE/Jakarta EE application server like **Apache Tomcat** or **Eclipse Jetty** to deploy this.
+You'll have two main Java files:
 
-**`ChatServerEndpoint.java`**
+1.  `ChatServer.java`
+2.  `ChatClient.java`
+
+---
+
+### 1. `ChatServer.java`
+
+This class will:
+*   Listen for incoming client connections on a specific port.
+*   Create a new thread (`ClientHandler`) for each connected client.
+*   Maintain a list of all connected clients to broadcast messages.
 
 ```java
-import javax.websocket.*;
-import javax.websocket.server.ServerEndpoint;
-import java.io.IOException;
+import java.io.*;
+import java.net.*;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.List;
 
-// This annotation defines the WebSocket endpoint URL.
-// Clients will connect to ws://your_server_ip:port/chat
-@ServerEndpoint("/chat")
-public class ChatServerEndpoint {
+public class ChatServer {
 
-    // A thread-safe set to store all connected client sessions.
-    private static Set<Session> sessions = Collections.synchronizedSet(new HashSet<>());
-
-    /**
-     * Called when a new WebSocket connection is established.
-     * @param session The session object for the new connection.
-     */
-    @OnOpen
-    public void onOpen(Session session) {
-        sessions.add(session);
-        System.out.println("Client connected: " + session.getId());
-        broadcast("New user joined: " + session.getId());
-    }
-
-    /**
-     * Called when a message is received from a client.
-     * @param message The text message received.
-     * @param session The session from which the message originated.
-     */
-    @OnMessage
-    public void onMessage(String message, Session session) {
-        System.out.println("Message from " + session.getId() + ": " + message);
-        // Broadcast the message to all connected clients
-        broadcast("User " + session.getId() + ": " + message);
-    }
-
-    /**
-     * Called when a WebSocket connection is closed.
-     * @param session The session that was closed.
-     * @param closeReason The reason for closure.
-     */
-    @OnClose
-    public void onClose(Session session, CloseReason closeReason) {
-        sessions.remove(session);
-        System.out.println("Client disconnected: " + session.getId() + " - " + closeReason.getReasonPhrase());
-        broadcast("User " + session.getId() + " left.");
-    }
-
-    /**
-     * Called when an error occurs on a WebSocket connection.
-     * @param session The session where the error occurred.
-     * @param throwable The exception that caused the error.
-     */
-    @OnError
-    public void onError(Session session, Throwable throwable) {
-        System.err.println("Error on session " + session.getId() + ": " + throwable.getMessage());
-        throwable.printStackTrace();
-    }
-
-    /**
-     * Helper method to send a message to all connected clients.
-     * @param message The message to broadcast.
-     */
-    private void broadcast(String message) {
-        for (Session session : sessions) {
-            try {
-                // getBasicRemote() is synchronous, getAsyncRemote() is asynchronous
-                session.getBasicRemote().sendText(message);
-            } catch (IOException e) {
-                System.err.println("Error broadcasting to " + session.getId() + ": " + e.getMessage());
-                // Optionally remove the session if sending fails consistently
-            }
-        }
-    }
-}
-```
-
----
-
-## 2. Client-Side (Java)
-
-This is a simple command-line Java client.
-
-**`ChatClientEndpoint.java`**
-
-```java
-import javax.websocket.*;
-import java.io.IOException;
-import java.net.URI;
-import java.util.Scanner;
-
-// This annotation marks this class as a WebSocket client endpoint.
-@ClientEndpoint
-public class ChatClientEndpoint {
-
-    private Session session; // The WebSocket session with the server
-
-    /**
-     * Called when the client successfully connects to the server.
-     * @param session The session object for this connection.
-     */
-    @OnOpen
-    public void onOpen(Session session) {
-        this.session = session;
-        System.out.println("Connected to chat server: " + session.getId());
-    }
-
-    /**
-     * Called when a message is received from the server.
-     * @param message The text message received.
-     */
-    @OnMessage
-    public void onMessage(String message) {
-        System.out.println("Received: " + message);
-    }
-
-    /**
-     * Called when the connection to the server is closed.
-     * @param session The session that was closed.
-     * @param closeReason The reason for closure.
-     */
-    @OnClose
-    public void onClose(Session session, CloseReason closeReason) {
-        System.out.println("Disconnected from server: " + closeReason.getReasonPhrase());
-    }
-
-    /**
-     * Called when an error occurs on the connection.
-     * @param session The session where the error occurred.
-     * @param throwable The exception that caused the error.
-     */
-    @OnError
-    public void onError(Session session, Throwable throwable) {
-        System.err.println("Error on client session: " + throwable.getMessage());
-        throwable.printStackTrace();
-    }
-
-    /**
-     * Sends a message to the server.
-     * @param message The message to send.
-     * @throws IOException If an I/O error occurs.
-     */
-    public void sendMessage(String message) throws IOException {
-        if (session != null && session.isOpen()) {
-            session.getBasicRemote().sendText(message);
-        } else {
-            System.err.println("Cannot send message: Not connected or session closed.");
-        }
-    }
+    private static final int PORT = 12345; // Port number for the server
+    // A thread-safe list to store all connected client handlers
+    private static List<ClientHandler> clientHandlers = Collections.synchronizedList(new ArrayList<>());
 
     public static void main(String[] args) {
-        // Get the WebSocket container instance
-        WebSocketContainer container = ContainerProvider.getWebSocketContainer();
-        // The URI of the server WebSocket endpoint
-        String uri = "ws://localhost:8080/chat"; // Adjust port if needed
-
-        ChatClientEndpoint client = new ChatClientEndpoint();
-        try {
-            // Connect to the server
-            container.connectToServer(client, URI.create(uri));
-
-            // Allow user to type messages
-            Scanner scanner = new Scanner(System.in);
-            System.out.println("Type messages and press Enter. Type 'exit' to quit.");
+        System.out.println("Chat Server started on port " + PORT);
+        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             while (true) {
-                System.out.print("> ");
-                String message = scanner.nextLine();
-                if ("exit".equalsIgnoreCase(message)) {
-                    break;
-                }
-                client.sendMessage(message);
+                // Server waits for a client to connect
+                Socket clientSocket = serverSocket.accept();
+                System.out.println("New client connected: " + clientSocket);
+
+                // Create a new handler for the client and start it in a new thread
+                ClientHandler clientHandler = new ClientHandler(clientSocket);
+                clientHandlers.add(clientHandler); // Add to the list of active clients
+                new Thread(clientHandler).start();
             }
-        } catch (DeploymentException | IOException e) {
-            System.err.println("Failed to connect or communicate with server: " + e.getMessage());
+        } catch (IOException e) {
+            System.err.println("Server error: " + e.getMessage());
             e.printStackTrace();
-        } finally {
-            // Close the session when done
-            if (client.session != null && client.session.isOpen()) {
-                try {
-                    client.session.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+        }
+    }
+
+    // Method to broadcast a message to all connected clients
+    public static void broadcastMessage(String message, ClientHandler sender) {
+        System.out.println("Broadcasting: " + message);
+        // Iterate through a copy of the list to avoid ConcurrentModificationException
+        // if a client disconnects during iteration.
+        // Or, use a synchronized block if using Collections.synchronizedList
+        synchronized (clientHandlers) {
+            for (ClientHandler handler : clientHandlers) {
+                // Don't send the message back to the sender if it's a private message or specific logic
+                // For a general chat, send to everyone including sender (optional, can be excluded)
+                // if (handler != sender) { // Uncomment this line if you don't want sender to receive their own message
+                    handler.sendMessage(message);
+                // }
             }
+        }
+    }
+
+    // Method to remove a disconnected client handler
+    public static void removeClient(ClientHandler clientHandler) {
+        clientHandlers.remove(clientHandler);
+        System.out.println("Client disconnected: " + clientHandler.getNickname());
+        broadcastMessage(clientHandler.getNickname() + " has left the chat.", null);
+    }
+}
+
+// Inner class to handle each client connection in a separate thread
+class ClientHandler implements Runnable {
+    private Socket clientSocket;
+    private PrintWriter writer;
+    private BufferedReader reader;
+    private String nickname;
+
+    public ClientHandler(Socket socket) {
+        this.clientSocket = socket;
+        try {
+            // Get input and output streams for the client socket
+            this.writer = new PrintWriter(clientSocket.getOutputStream(), true); // true for auto-flush
+            this.reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+        } catch (IOException e) {
+            System.err.println("Error setting up client handler: " + e.getMessage());
+            closeResources();
+        }
+    }
+
+    public String getNickname() {
+        return nickname;
+    }
+
+    @Override
+    public void run() {
+        try {
+            // First message from client should be their nickname
+            writer.println("Welcome to the chat! Please enter your nickname:");
+            nickname = reader.readLine();
+            if (nickname == null || nickname.trim().isEmpty()) {
+                nickname = "Guest-" + clientSocket.getPort(); // Fallback nickname
+            }
+            System.out.println(nickname + " has joined the chat.");
+            ChatServer.broadcastMessage(nickname + " has joined the chat.", this);
+
+            String message;
+            while ((message = reader.readLine()) != null) {
+                // Prepend nickname to the message before broadcasting
+                String formattedMessage = "[" + nickname + "]: " + message;
+                ChatServer.broadcastMessage(formattedMessage, this);
+            }
+        } catch (IOException e) {
+            // Client disconnected or an error occurred
+            System.out.println(nickname + " disconnected.");
+        } finally {
+            // Clean up resources when client disconnects
+            ChatServer.removeClient(this);
+            closeResources();
+        }
+    }
+
+    // Method to send a message to this specific client
+    public void sendMessage(String message) {
+        writer.println(message);
+    }
+
+    // Helper method to close all resources
+    private void closeResources() {
+        try {
+            if (writer != null) writer.close();
+            if (reader != null) reader.close();
+            if (clientSocket != null && !clientSocket.isClosed()) clientSocket.close();
+        } catch (IOException e) {
+            System.err.println("Error closing client resources: " + e.getMessage());
         }
     }
 }
@@ -204,212 +154,126 @@ public class ChatClientEndpoint {
 
 ---
 
-## 3. Client-Side (JavaScript/Browser)
+### 2. `ChatClient.java`
 
-This is a common way to interact with WebSockets from a web page.
+This class will:
+*   Connect to the server.
+*   Read messages from the server (in a separate thread).
+*   Send messages typed by the user to the server.
 
-**`index.html`**
+```java
+import java.io.*;
+import java.net.*;
+import java.util.Scanner;
 
-```html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>WebSocket Chat Client</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        #messages { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; margin-bottom: 10px; }
-        input[type="text"] { width: 70%; padding: 8px; }
-        button { padding: 8px 15px; }
-    </style>
-</head>
-<body>
-    <h1>WebSocket Chat</h1>
-    <div id="messages"></div>
-    <input type="text" id="messageInput" placeholder="Type your message...">
-    <button onclick="sendMessage()">Send</button>
+public class ChatClient {
 
-    <script>
-        const messagesDiv = document.getElementById('messages');
-        const messageInput = document.getElementById('messageInput');
+    private static final String SERVER_ADDRESS = "localhost"; // Server IP address (use "localhost" for local testing)
+    private static final int SERVER_PORT = 12345; // Server port number
 
-        // Create a new WebSocket connection
-        // Adjust the URL to your server's IP and port if not localhost:8080
-        const ws = new WebSocket("ws://localhost:8080/chat");
+    public static void main(String[] args) {
+        try (Socket socket = new Socket(SERVER_ADDRESS, SERVER_PORT);
+             PrintWriter out = new PrintWriter(socket.getOutputStream(), true); // true for auto-flush
+             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+             Scanner scanner = new Scanner(System.in)) {
 
-        // Event listener for when the connection is opened
-        ws.onopen = function(event) {
-            messagesDiv.innerHTML += "<p><em>Connected to chat server.</em></p>";
-        };
+            System.out.println("Connected to the chat server.");
 
-        // Event listener for when a message is received from the server
-        ws.onmessage = function(event) {
-            messagesDiv.innerHTML += "<p>" + event.data + "</p>";
-            messagesDiv.scrollTop = messagesDiv.scrollHeight; // Scroll to bottom
-        };
+            // Thread to read messages from the server
+            Thread readThread = new Thread(() -> {
+                try {
+                    String serverMessage;
+                    while ((serverMessage = in.readLine()) != null) {
+                        System.out.println(serverMessage);
+                    }
+                } catch (IOException e) {
+                    System.out.println("Disconnected from server or error reading: " + e.getMessage());
+                } finally {
+                    // Ensure scanner is closed if this thread terminates
+                    // (though in this simple app, main thread's scanner handles input)
+                }
+            });
+            readThread.start(); // Start the thread to listen for server messages
 
-        // Event listener for when the connection is closed
-        ws.onclose = function(event) {
-            messagesDiv.innerHTML += "<p><em>Disconnected from chat server.</em></p>";
-        };
-
-        // Event listener for errors
-        ws.onerror = function(event) {
-            messagesDiv.innerHTML += "<p style='color:red;'><em>Error: " + event.message + "</em></p>";
-        };
-
-        // Function to send a message to the server
-        function sendMessage() {
-            const message = messageInput.value;
-            if (message) {
-                ws.send(message); // Send the message
-                messageInput.value = ''; // Clear the input field
+            // Main thread to send messages to the server
+            String userInput;
+            while (true) {
+                if (scanner.hasNextLine()) {
+                    userInput = scanner.nextLine();
+                    if (userInput.equalsIgnoreCase("quit")) {
+                        System.out.println("Disconnecting from chat.");
+                        break; // Exit the loop and close resources
+                    }
+                    out.println(userInput); // Send user input to the server
+                }
             }
+
+        } catch (UnknownHostException e) {
+            System.err.println("Server not found: " + e.getMessage());
+        } catch (ConnectException e) {
+            System.err.println("Connection refused. Make sure the server is running at " + SERVER_ADDRESS + ":" + SERVER_PORT);
+        } catch (IOException e) {
+            System.err.println("Client error: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            System.out.println("Client disconnected.");
         }
-
-        // Allow sending message by pressing Enter key
-        messageInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        });
-    </script>
-</body>
-</html>
+    }
+}
 ```
 
 ---
 
-## How to Run and Execute
+### How to Run:
 
-### 1. Server Setup (Apache Tomcat Example)
+1.  **Compile:**
+    Open your terminal or command prompt. Navigate to the directory where you saved `ChatServer.java` and `ChatClient.java`.
+    ```bash
+    javac ChatServer.java ChatClient.java
+    ```
 
-*   **Download Tomcat:** Get Apache Tomcat (e.g., version 9 or 10) from the official website.
-*   **Maven Project:**
-    *   Create a new Maven Web Application project.
-    *   Add the `javax.websocket-api` dependency to your `pom.xml`:
-        ```xml
-        <dependencies>
-            <dependency>
-                <groupId>javax.websocket</groupId>
-                <artifactId>javax.websocket-api</artifactId>
-                <version>1.1</version> <!-- Or 1.0, 1.1, 1.2.1, etc. -->
-                <scope>provided</scope> <!-- Provided by the server -->
-            </dependency>
-            <!-- If using Jakarta EE (Tomcat 10+), use jakarta.websocket-api -->
-            <!--
-            <dependency>
-                <groupId>jakarta.websocket</groupId>
-                <artifactId>jakarta.websocket-api</artifactId>
-                <version>2.1.0</version>
-                <scope>provided</scope>
-            </dependency>
-            -->
-        </dependencies>
-        <build>
-            <finalName>websocket-chat</finalName> <!-- Name of your WAR file -->
-            <plugins>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.8.1</version>
-                    <configuration>
-                        <source>1.8</source> <!-- Or higher, e.g., 11, 17 -->
-                        <target>1.8</target>
-                    </configuration>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-war-plugin</artifactId>
-                    <version>3.3.2</version>
-                </plugin>
-            </plugins>
-        </build>
-        ```
-    *   Place `ChatServerEndpoint.java` in `src/main/java/your/package/name/`.
-    *   Build the project: `mvn clean package`. This will create a `websocket-chat.war` file in your `target` directory.
-*   **Deploy:** Copy the `websocket-chat.war` file to Tomcat's `webapps` directory.
-*   **Start Tomcat:** Run `startup.bat` (Windows) or `startup.sh` (Linux/macOS) from Tomcat's `bin` directory.
+2.  **Start the Server:**
+    In one terminal window, run the server:
+    ```bash
+    java ChatServer
+    ```
+    You should see: `Chat Server started on port 12345`
 
-### 2. Java Client Setup
+3.  **Start Clients:**
+    Open one or more *new* terminal windows. In each, run a client:
+    ```bash
+    java ChatClient
+    ```
+    Each client will prompt you to enter a nickname.
 
-*   **Maven Project:**
-    *   Create a new Maven Java project.
-    *   Add the following dependencies to your `pom.xml`:
-        ```xml
-        <dependencies>
-            <dependency>
-                <groupId>javax.websocket</groupId>
-                <artifactId>javax.websocket-api</artifactId>
-                <version>1.1</version>
-            </dependency>
-            <!-- Tyrus is a reference implementation for JSR 356 client -->
-            <dependency>
-                <groupId>org.glassfish.tyrus</groupId>
-                <artifactId>tyrus-standalone-client</artifactId>
-                <version>1.17</version> <!-- Use a compatible version -->
-            </dependency>
-            <!-- If using Jakarta EE (Tomcat 10+), use jakarta.websocket-api and Tyrus Jakarta client -->
-            <!--
-            <dependency>
-                <groupId>jakarta.websocket</groupId>
-                <artifactId>jakarta.websocket-api</artifactId>
-                <version>2.1.0</version>
-            </dependency>
-            <dependency>
-                <groupId>org.glassfish.tyrus</groupId>
-                <artifactId>tyrus-standalone-client-jdk</artifactId>
-                <version>2.1.0</version>
-            </dependency>
-            -->
-        </dependencies>
-        <build>
-            <plugins>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.8.1</version>
-                    <configuration>
-                        <source>1.8</source>
-                        <target>1.8</target>
-                    </configuration>
-                </plugin>
-                <plugin>
-                    <groupId>org.codehaus.mojo</groupId>
-                    <artifactId>exec-maven-plugin</artifactId>
-                    <version>3.0.0</version>
-                    <configuration>
-                        <mainClass>ChatClientEndpoint</mainClass>
-                    </configuration>
-                </plugin>
-            </plugins>
-        </build>
-        ```
-    *   Place `ChatClientEndpoint.java` in `src/main/java/`.
-*   **Run:**
-    *   From your IDE (IntelliJ, Eclipse), right-click `ChatClientEndpoint.java` and "Run as Java Application".
-    *   From the command line in the project root: `mvn exec:java`
-
-### 3. JavaScript Client Setup
-
-*   Save the `index.html` file to your computer.
-*   Open the `index.html` file in any modern web browser (Chrome, Firefox, Edge).
+4.  **Chat!**
+    *   Type messages in any client window and press Enter.
+    *   The message will appear in all connected client windows (including the one you typed it in) and on the server console.
+    *   To disconnect a client, type `quit` and press Enter.
+    *   To stop the server, press `Ctrl+C` in the server's terminal window.
 
 ---
 
-## Execution Flow (Sending/Receiving Messages)
+### Explanation of Key Parts:
 
-1.  **Start Tomcat:** The `ChatServerEndpoint` will be deployed and ready to accept connections on `ws://localhost:8080/chat` (or your server's IP/port).
-2.  **Run Java Client:**
-    *   The `main` method in `ChatClientEndpoint` will create a `WebSocketContainer` and attempt to `connectToServer`.
-    *   The `@OnOpen` method in `ChatClientEndpoint` will be called, printing "Connected...".
-    *   You can now type messages in your console. When you press Enter, `client.sendMessage()` will be called, which uses `session.getBasicRemote().sendText()` to send the message to the server.
-    *   When the server receives a message, its `@OnMessage` method in `ChatServerEndpoint` is triggered. It then calls `broadcast()`, which iterates through all connected `sessions` and uses `session.getBasicRemote().sendText()` to send the message back to all clients (including the sender).
-    *   When the Java client receives a message, its `@OnMessage` method is triggered, printing "Received: ...".
-3.  **Open HTML Client:**
-    *   The JavaScript `new WebSocket("ws://localhost:8080/chat")` will attempt to connect.
-    *   The `ws.onopen` event will fire, updating the HTML.
-    *   Type a message in the input field and click "Send" or press Enter. The `sendMessage()` function will call `ws.send(message)`.
-    *   The server's `@OnMessage` will receive it and broadcast it.
-    *   The JavaScript client's `ws.onmessage` event will fire, updating the `messagesDiv` with the received message.
+*   **`ServerSocket` (Server):** `new ServerSocket(PORT)` creates a socket that listens for connections on the specified port. `serverSocket.accept()` blocks until a client connects, then returns a `Socket` object representing that connection.
+*   **`Socket` (Client & Server):**
+    *   Client: `new Socket(SERVER_ADDRESS, SERVER_PORT)` attempts to establish a connection to the server.
+    *   Server: The `Socket` returned by `accept()` is used to communicate with that specific client.
+*   **`PrintWriter` and `BufferedReader`:**
+    *   `PrintWriter(socket.getOutputStream(), true)`: Used to send text data. `true` enables auto-flushing, meaning you don't have to manually call `flush()` after every `println()`.
+    *   `BufferedReader(new InputStreamReader(socket.getInputStream()))`: Used to read text data line by line. `InputStreamReader` bridges byte streams to character streams.
+*   **`ClientHandler` (Server):**
+    *   This is a `Runnable` class. Each time a new client connects, the server creates an instance of `ClientHandler` and starts it in a new `Thread`.
+    *   The `run()` method of `ClientHandler` continuously reads messages from its assigned client. When a message is received, it calls `ChatServer.broadcastMessage()` to send it to all other clients.
+    *   It also handles client disconnection (when `reader.readLine()` returns `null` or an `IOException` occurs).
+*   **`broadcastMessage()` (Server):**
+    *   Iterates through the `clientHandlers` list and calls `sendMessage()` on each handler to send the message to all connected clients.
+    *   `Collections.synchronizedList(new ArrayList<>())` is used to make the `clientHandlers` list thread-safe, as multiple `ClientHandler` threads will be adding/removing/iterating it. The `synchronized (clientHandlers)` block ensures that only one thread can modify or iterate the list at a time.
+*   **Client's `readThread`:**
+    *   The client also needs two concurrent activities: reading from the server and sending user input.
+    *   A separate `Thread` is created in the client's `main` method to continuously read messages from the server (`in.readLine()`) and print them to the console.
+    *   The main thread then handles reading user input from `System.in` and sending it to the server.
+*   **`try-with-resources`:** Used extensively (`try (Socket socket = ...)`). This ensures that network resources (sockets, streams) are automatically closed when the `try` block is exited, even if exceptions occur. This is crucial for preventing resource leaks.
 
-You can run multiple Java clients and/or open multiple browser tabs with `index.html` to see them all communicate in real-time through the single Java WebSocket server.
+This setup provides a basic, functional command-line chat application. You could extend it with features like private messaging, user lists, more robust error handling, or even a graphical user interface (GUI) using Swing or JavaFX.
