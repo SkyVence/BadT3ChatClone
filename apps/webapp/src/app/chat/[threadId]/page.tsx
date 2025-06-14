@@ -5,10 +5,9 @@ import { useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, AlertCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { MarkdownCodeBlock } from "@/components/markdown";
 import remarkGfm from "remark-gfm";
-import React from "react";
 import { visit } from "unist-util-visit";
+import React from "react";
 
 function formatTime(dateString: string) {
     const date = new Date(dateString);
@@ -76,21 +75,11 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
         const CodeRenderer = ({ inline, className, children, ...props }: any) => {
             const codeChildren = Array.isArray(children) ? children.join("") : children;
             if (inline) {
-                return (
-                    <code className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm" {...props}>
-                        {codeChildren}
-                    </code>
-                );
+                return <code className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm" {...props}>{codeChildren}</code>;
             }
-            // Block (fenced) code
-            return (
-                <MarkdownCodeBlock className={className}>{codeChildren}</MarkdownCodeBlock>
-            );
+            return <code className={className} {...props}>{codeChildren}</code>;
         };
-
-        const PreRenderer = ({ children }: any) => <>{children}</>;
-
-        return { code: CodeRenderer, pre: PreRenderer } as const;
+        return { code: CodeRenderer } as const;
     }, []);
 
     return (
