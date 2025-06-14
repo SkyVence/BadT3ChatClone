@@ -31,12 +31,8 @@ function rehypeAddParents() {
     return (tree: any) => {
         visit(tree, (node: any, _index: any, parent: any) => {
             if (node && typeof node === "object") {
-                Object.defineProperty(node, 'parent', {
-                    value: parent,
-                    configurable: true,
-                    enumerable: false,
-                    writable: true,
-                });
+                // Attach parent reference as an enumerable property so it survives any cloning
+                (node as any).parent = parent;
             }
         });
     };
