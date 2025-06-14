@@ -8,7 +8,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { visit } from "unist-util-visit";
 import React from "react";
-import { MarkdownCodeBlock } from "@/components/markdown";
 
 function formatTime(dateString: string) {
     const date = new Date(dateString);
@@ -75,8 +74,8 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
     const markdownComponents = useMemo(() => {
         const CodeRenderer = ({ inline, className = "", children, ...props }: any) => {
             const codeText = Array.isArray(children) ? children.join("") : children;
-            // Inline code styling
             if (inline) {
+                // Inline code styling
                 return (
                     <code
                         className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm"
@@ -86,26 +85,19 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                     </code>
                 );
             }
-            // For block code, we render nothing here because PreRenderer will take over.
-            return null;
-        };
-
-        const PreRenderer = ({ children, ...props }: any) => {
-            // children should be a single <code> element (our CodeRenderer output is null for block, but default fallback code element may still be present)
-            const codeElem: any = Array.isArray(children) ? children[0] : children;
-            const className = codeElem?.props?.className || "";
-            // Extract code string from codeElem's children
-            let codeStr = "";
-            const raw = codeElem?.props?.children;
-            if (typeof raw === "string") codeStr = raw;
-            else if (Array.isArray(raw)) codeStr = raw.join("");
-
+            // Code block inside <pre>
             return (
-                <MarkdownCodeBlock className={className} {...props}>
-                    {codeStr}
-                </MarkdownCodeBlock>
+                <code className={`text-sm font-mono ${className}`} {...props}>
+                    {codeText}
+                </code>
             );
         };
+
+        const PreRenderer = ({ children, ...props }: any) => (
+            <pre className="my-2 rounded-md bg-muted overflow-auto border border-border p-3" {...props}>
+                {children}
+            </pre>
+        );
 
         return {
             code: CodeRenderer,
