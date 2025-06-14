@@ -5,7 +5,9 @@
 		"build": {
 			"dependsOn": ["^build"],
 			"inputs": ["$TURBO_DEFAULT$", ".env*"],
-			"outputs": ["dist/**"]
+			"outputs": ["dist/**"],
+            "env": ["DATABASE_URL", "REDIS_URL", "NEXT_PUBLIC_URL", "BETTER_AUTH_URL", 
+            "BETTER_AUTH_SECRET", "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "ENCRYPT_API"]
 		},
 		"lint": {
 			"dependsOn": ["^lint"]

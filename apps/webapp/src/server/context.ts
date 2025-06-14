@@ -13,5 +13,4 @@ export async function createContext(req: NextRequest) {
     };
 }
 
-
 export type Context = Awaited<ReturnType<typeof createContext>>;

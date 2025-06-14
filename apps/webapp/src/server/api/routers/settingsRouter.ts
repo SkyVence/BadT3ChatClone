@@ -1,14 +1,11 @@
 import { db } from "@/db";
 import { userKeys } from "@/db/schema";
-import { 
-    protectedProcedure, 
-    router, 
-    createTRPCError, 
-    validateRequired, 
-    validateOwnership, 
-    handleDatabaseError 
+import {
+    protectedProcedure,
+    router,
 } from "@/server/api/trpc";
 import { decrypt, encrypt } from "@/utils/crypto";
+import { TRPCError } from "@trpc/server";
 import { eq, and } from "drizzle-orm";
 import z from "zod";
 
@@ -50,7 +47,10 @@ export const settingsRouter = router({
                     }
                 });
             } catch (error) {
-                handleDatabaseError(error, 'fetch API keys');
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: 'Failed to fetch API keys',
+                });
             }
         }),
 
@@ -68,7 +68,10 @@ export const settingsRouter = router({
 
                 // Validate API key format based on provider
                 if (!validateApiKeyFormat(provider, key)) {
-                    throw createTRPCError('API_KEY_INVALID', `Invalid ${provider} API key format`);
+                    throw new TRPCError({
+                        code: 'BAD_REQUEST',
+                        message: `Invalid ${provider} API key format`,
+                    });
                 }
 
                 // Check if user already has an API key for this provider
@@ -80,7 +83,10 @@ export const settingsRouter = router({
                 });
 
                 if (existingKey) {
-                    throw createTRPCError('ALREADY_EXISTS', `You already have an API key for ${provider}. Please delete the existing key first.`);
+                    throw new TRPCError({
+                        code: 'BAD_REQUEST',
+                        message: `You already have an API key for ${provider}. Please delete the existing key first.`,
+                    });
                 }
 
                 // Encrypt the API key
@@ -89,7 +95,10 @@ export const settingsRouter = router({
                     encryptedKey = encrypt(key);
                 } catch (error) {
                     console.error('Encryption error:', error);
-                    throw createTRPCError('INTERNAL_ERROR', 'Failed to secure API key');
+                    throw new TRPCError({
+                        code: 'INTERNAL_SERVER_ERROR',
+                        message: 'Failed to secure API key',
+                    });
                 }
 
                 // Insert the new API key
@@ -102,7 +111,10 @@ export const settingsRouter = router({
                 }).returning();
 
                 if (!newApiKey) {
-                    throw createTRPCError('DATABASE_ERROR', 'Failed to save API key');
+                    throw new TRPCError({
+                        code: 'INTERNAL_SERVER_ERROR',
+                        message: 'Failed to save API key',
+                    });
                 }
 
                 return {
@@ -112,7 +124,10 @@ export const settingsRouter = router({
                 };
             } catch (error) {
                 if (!(error as any).code) {
-                    handleDatabaseError(error, 'create API key');
+                    throw new TRPCError({
+                        code: 'INTERNAL_SERVER_ERROR',
+                        message: 'Failed to create API key',
+                    });
                 }
                 throw error;
             }
@@ -134,18 +149,32 @@ export const settingsRouter = router({
                 });
 
                 if (!existingKey) {
-                    throw createTRPCError('NOT_FOUND', 'API key not found');
+                    throw new TRPCError({
+                        code: 'NOT_FOUND',
+                        message: 'API key not found',
+                    });
                 }
 
                 if (!existingKey.userId) {
-                    throw createTRPCError('DATABASE_ERROR', 'API key has invalid user association');
+                    throw new TRPCError({
+                        code: 'INTERNAL_SERVER_ERROR',
+                        message: 'API key has invalid user association',
+                    });
                 }
 
-                validateOwnership(existingKey.userId, userId, 'API key');
+                if (existingKey.userId !== userId) {
+                    throw new TRPCError({
+                        code: 'FORBIDDEN',
+                        message: 'You are not allowed to update this API key',
+                    });
+                }
 
                 // Validate API key format
                 if (!validateApiKeyFormat(existingKey.provider, key)) {
-                    throw createTRPCError('API_KEY_INVALID', `Invalid ${existingKey.provider} API key format`);
+                    throw new TRPCError({
+                        code: 'BAD_REQUEST',
+                        message: `Invalid ${existingKey.provider} API key format`,
+                    });
                 }
 
                 // Encrypt the new API key
@@ -154,7 +183,10 @@ export const settingsRouter = router({
                     encryptedKey = encrypt(key);
                 } catch (error) {
                     console.error('Encryption error:', error);
-                    throw createTRPCError('INTERNAL_ERROR', 'Failed to secure API key');
+                    throw new TRPCError({
+                        code: 'INTERNAL_SERVER_ERROR',
+                        message: 'Failed to secure API key',
+                    });
                 }
 
                 // Update the API key
@@ -167,7 +199,10 @@ export const settingsRouter = router({
                     .returning();
 
                 if (!updatedKey) {
-                    throw createTRPCError('DATABASE_ERROR', 'Failed to update API key');
+                    throw new TRPCError({
+                        code: 'INTERNAL_SERVER_ERROR',
+                        message: 'Failed to update API key',
+                    });
                 }
 
                 return {
@@ -177,7 +212,10 @@ export const settingsRouter = router({
                 };
             } catch (error) {
                 if (!(error as any).code) {
-                    handleDatabaseError(error, 'update API key');
+                    throw new TRPCError({
+                        code: 'INTERNAL_SERVER_ERROR',
+                        message: 'Failed to update API key',
+                    });
                 }
                 throw error;
             }
@@ -198,14 +236,25 @@ export const settingsRouter = router({
                 });
 
                 if (!existingKey) {
-                    throw createTRPCError('NOT_FOUND', 'API key not found');
+                    throw new TRPCError({
+                        code: 'NOT_FOUND',
+                        message: 'API key not found',
+                    });
                 }
 
                 if (!existingKey.userId) {
-                    throw createTRPCError('DATABASE_ERROR', 'API key has invalid user association');
+                    throw new TRPCError({
+                        code: 'INTERNAL_SERVER_ERROR',
+                        message: 'API key has invalid user association',
+                    });
                 }
 
-                validateOwnership(existingKey.userId, userId, 'API key');
+                if (existingKey.userId !== userId) {
+                    throw new TRPCError({
+                        code: 'FORBIDDEN',
+                        message: 'You are not allowed to delete this API key',
+                    });
+                }
 
                 // Delete the API key
                 const deletedRows = await db.delete(userKeys)
@@ -219,7 +268,10 @@ export const settingsRouter = router({
                 return { success: true, provider: existingKey.provider };
             } catch (error) {
                 if (!(error as any).code) {
-                    handleDatabaseError(error, 'delete API key');
+                    throw new TRPCError({
+                        code: 'INTERNAL_SERVER_ERROR',
+                        message: 'Failed to delete API key',
+                    });
                 }
                 throw error;
             }

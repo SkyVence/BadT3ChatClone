@@ -1,12 +1,10 @@
 import { db } from "@/db";
 import { messages, threads } from "@/db/schema";
-import { 
-    protectedProcedure, 
-    router, 
-    createTRPCError, 
-    validateOwnership, 
-    handleDatabaseError 
+import {
+    protectedProcedure,
+    router,
 } from "@/server/api/trpc";
+import { TRPCError } from "@trpc/server";
 import { and, asc, count, desc, eq } from "drizzle-orm";
 import z from "zod";
 
@@ -19,7 +17,7 @@ export const threadsRouter = router({
         .query(async ({ ctx, input }) => {
             try {
                 const userId = ctx.session.user.id;
-                
+
                 const [totalResult, queryData] = await Promise.all([
                     db.select({ value: count() }).from(threads).where(eq(threads.userId, userId)),
                     db.query.threads.findMany({
@@ -49,7 +47,10 @@ export const threadsRouter = router({
                     },
                 };
             } catch (error) {
-                handleDatabaseError(error, 'fetch conversations');
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: 'Failed to fetch conversations',
+                });
             }
         }),
 
@@ -64,7 +65,7 @@ export const threadsRouter = router({
 
                 const thread = await db.query.threads.findFirst({
                     where: and(
-                        eq(threads.id, threadId), 
+                        eq(threads.id, threadId),
                         eq(threads.userId, userId)
                     ),
                     with: {
@@ -75,7 +76,10 @@ export const threadsRouter = router({
                 });
 
                 if (!thread) {
-                    throw createTRPCError('NOT_FOUND', 'Conversation not found');
+                    throw new TRPCError({
+                        code: 'NOT_FOUND',
+                        message: 'Conversation not found',
+                    });
                 }
 
                 return {
@@ -83,7 +87,10 @@ export const threadsRouter = router({
                 };
             } catch (error) {
                 if (!(error as any).code) {
-                    handleDatabaseError(error, 'fetch conversation context');
+                    throw new TRPCError({
+                        code: 'INTERNAL_SERVER_ERROR',
+                        message: 'Failed to fetch conversation context',
+                    });
                 }
                 throw error;
             }
@@ -104,10 +111,18 @@ export const threadsRouter = router({
                 });
 
                 if (!thread) {
-                    throw createTRPCError('NOT_FOUND', 'Conversation not found');
+                    throw new TRPCError({
+                        code: 'NOT_FOUND',
+                        message: 'Conversation not found',
+                    });
                 }
 
-                validateOwnership(thread.userId, userId, 'conversation');
+                if (thread.userId !== userId) {
+                    throw new TRPCError({
+                        code: 'FORBIDDEN',
+                        message: 'You are not allowed to delete this conversation',
+                    });
+                }
 
                 // Delete the thread (messages will be cascade deleted)
                 await db.delete(threads).where(
@@ -120,7 +135,10 @@ export const threadsRouter = router({
                 return { success: true };
             } catch (error) {
                 if (!(error as any).code) {
-                    handleDatabaseError(error, 'delete conversation');
+                    throw new TRPCError({
+                        code: 'INTERNAL_SERVER_ERROR',
+                        message: 'Failed to delete conversation',
+                    });
                 }
                 throw error;
             }
