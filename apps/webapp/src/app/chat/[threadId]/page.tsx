@@ -108,20 +108,24 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
             let languageClass = "";
             let codeString = "";
 
-            // If children were suppressed (CodeRenderer returned null), use the original AST node to extract info
-            if (Array.isArray(node?.children) && node.children[0]) {
-                const codeNode: any = node.children[0];
-                languageClass = (codeNode.properties?.className ?? []).join(" ");
-                codeString = codeNode.value ?? "";
+            // Prefer AST inspection (works when CodeRenderer returned null)
+            if (node && Array.isArray(node.children)) {
+                const codeNode: any = node.children.find((n: any) => n.tagName === "code") || node.children[0];
+                if (codeNode) {
+                    languageClass = (codeNode.properties?.className ?? []).join(" ");
+                    // Extract raw text from the text child
+                    if (Array.isArray(codeNode.children) && codeNode.children[0]?.value) {
+                        codeString = codeNode.children.map((c: any) => c.value || "").join("");
+                    }
+                }
             }
 
-            // If children are present (fallback), derive data from it
-            if (!codeString && Array.isArray(children)) {
+            // Fallback to rendered children (in case CodeRenderer didn't return null)
+            if (!codeString && Array.isArray(children) && children.length) {
                 const codeElem: any = children[0];
-                languageClass = codeElem?.props?.className || "";
+                languageClass = codeElem?.props?.className || languageClass;
                 const raw = codeElem?.props?.children;
-                if (typeof raw === "string") codeString = raw;
-                else if (Array.isArray(raw)) codeString = raw.join("");
+                codeString = typeof raw === "string" ? raw : Array.isArray(raw) ? raw.join("") : "";
             }
 
             return (
