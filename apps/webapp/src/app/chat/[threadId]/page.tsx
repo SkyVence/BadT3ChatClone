@@ -31,7 +31,12 @@ function rehypeAddParents() {
     return (tree: any) => {
         visit(tree, (node: any, _index: any, parent: any) => {
             if (node && typeof node === "object") {
-                node.parent = parent;
+                Object.defineProperty(node, 'parent', {
+                    value: parent,
+                    configurable: true,
+                    enumerable: false,
+                    writable: true,
+                });
             }
         });
     };
@@ -84,12 +89,12 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
 
     // -------- Markdown rendering helpers --------
     const markdownComponents = useMemo(() => {
-        const CodeRenderer = ({ className = "", children, node, ...props }: any) => {
-            // Determine block vs inline by explicitly checking node.parent.tagName
+        const CodeRenderer = ({ className = "", inline, children, node, ...props }: any) => {
+            // Primary check: is this <code> directly inside a <pre> element?
             const isBlock = node && node.parent && node.parent.tagName === 'pre';
 
             if (isBlock) {
-                // Code block inside <pre> – preserve language class for syntax highlighting
+                // Fenced / block code: preserve language class for syntax highlighting
                 return (
                     <code className={`text-sm font-mono ${className}`} {...props}>
                         {children}
@@ -97,14 +102,11 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                 );
             }
 
-            // Inline code
-            const codeText = Array.isArray(children) ? children.join("") : children;
+            // Inline code (fallback also covers situations where parent lookup failed but `inline` flag is true)
+            const text = Array.isArray(children) ? children.join("") : children;
             return (
-                <code
-                    className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm"
-                    {...props}
-                >
-                    {codeText}
+                <code className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm" {...props}>
+                    {text}
                 </code>
             );
         };
