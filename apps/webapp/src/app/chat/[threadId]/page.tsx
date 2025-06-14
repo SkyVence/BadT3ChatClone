@@ -72,26 +72,27 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
 
     // -------- Markdown rendering helpers --------
     const markdownComponents = useMemo(() => {
-        const CodeRenderer = ({ inline: _inline, className = "", children, node, ...props }: any) => {
-            // Determine if this <code> is inside a <pre> (fenced block)
+        const CodeRenderer = ({ className = "", children, node, ...props }: any) => {
+            // Explicitly determine block vs inline by inspecting the parent element
             const isBlock = (node as any)?.parent?.tagName === 'pre';
 
-            if (!isBlock) {
-                // Inline code styling
+            if (isBlock) {
+                // Code block inside <pre> – preserve language class for syntax highlighting
                 return (
-                    <code
-                        className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm"
-                        {...props}
-                    >
+                    <code className={`text-sm font-mono ${className}`} {...props}>
                         {children}
                     </code>
                 );
             }
 
-            // Code block – keep default className (contains language-xyz)
+            // Inline code
+            const codeText = Array.isArray(children) ? children.join("") : children;
             return (
-                <code className={`text-sm font-mono ${className}`} {...props}>
-                    {children}
+                <code
+                    className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm"
+                    {...props}
+                >
+                    {codeText}
                 </code>
             );
         };
