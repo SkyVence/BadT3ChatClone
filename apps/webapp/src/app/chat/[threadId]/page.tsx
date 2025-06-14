@@ -6,6 +6,7 @@ import { useMessageStream } from "@/hooks/use-message-stream";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MarkdownRenderer } from "@/components/markdown-renderer";
 
 function formatTime(dateString: string) {
     const date = new Date(dateString);
@@ -96,11 +97,7 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                                     {msg.id === messageId ? null : (
                                         <>
                                             <div className="text-foreground">
-                                                <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
-                                                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                                                        {msg.content}
-                                                    </div>
-                                                </div>
+                                                <MarkdownRenderer content={msg.content || ""} />
                                             </div>
                                             <div className="text-xs text-muted-foreground text-left mt-2 px-1">
                                                 {formatTime(msg.createdAt)}
@@ -118,11 +115,7 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                     <div className="flex justify-start">
                         <div className="max-w-[85%] lg:max-w-[75%]">
                             <div className="text-foreground">
-                                <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
-                                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed min-h-[20px]">
-                                        {displayContent}
-                                    </div>
-                                </div>
+                                <MarkdownRenderer content={displayContent} />
                             </div>
                             {/* Show timestamp if the message is completed */}
                             {displayStatus === 'complete' && currentStreamingMessage && (

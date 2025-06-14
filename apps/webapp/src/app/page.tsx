@@ -2,6 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { MessageSquare, Zap, Sparkles, Brain, MessageCircle, Rocket, TestTube, User } from "lucide-react";
+import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { useAuth } from "@/context/auth";
 import { useStreamer } from "@/context/chat";
 import { useMessageStream } from "@/hooks/use-message-stream";
@@ -291,11 +292,7 @@ export default function HomePage() {
                                                     {msg.id === messageId ? null : (
                                                         <>
                                                             <div className="text-foreground">
-                                                                <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
-                                                                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                                                                        {msg.content}
-                                                                    </div>
-                                                                </div>
+                                                                <MarkdownRenderer content={msg.content || ""} />
                                                             </div>
                                                             <div className="text-xs text-muted-foreground text-left mt-2 px-1">
                                                                 {formatTime(msg.createdAt)}
@@ -313,18 +310,14 @@ export default function HomePage() {
                                     <div className="flex justify-start">
                                         <div className="max-w-[85%] lg:max-w-[75%]">
                                             <div className="text-foreground">
-                                                <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
-                                                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed min-h-[20px]">
-                                                        {displayContent}
-                                                    </div>
-                                                </div>
+                                                <MarkdownRenderer content={displayContent} />
                                             </div>
-                                            {/* Show timestamp if the message is completed */}
-                                            {displayStatus === 'complete' && currentStreamingMessage && (
-                                                <div className="text-xs text-muted-foreground text-left mt-2 px-1">
-                                                    {formatTime(currentStreamingMessage.createdAt)}
-                                                </div>
-                                            )}
+                                                    {/* Show timestamp if the message is completed */}
+                                                    {displayStatus === 'complete' && currentStreamingMessage && (
+                                                        <div className="text-xs text-muted-foreground text-left mt-2 px-1">
+                                                            {formatTime(currentStreamingMessage.createdAt)}
+                                                        </div>
+                                                    )}
                                         </div>
                                     </div>
                                 )}

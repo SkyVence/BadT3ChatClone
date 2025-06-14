@@ -4,6 +4,7 @@ import { useMessageStream } from '@/hooks/use-message-stream';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { MarkdownRenderer } from '@/components/markdown-renderer';
 
 interface StreamingMessageProps {
     messageId: string;
@@ -53,11 +54,7 @@ export function StreamingMessage({
         <div className="w-full">
             {/* Message Content */}
             {displayContent && (
-                <div className="prose prose-sm max-w-none dark:prose-invert">
-                    <div className="whitespace-pre-wrap break-words">
-                        {displayContent}
-                    </div>
-                </div>
+                <MarkdownRenderer content={displayContent} />
             )}
 
             {/* Streaming Indicator */}

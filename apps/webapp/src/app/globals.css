@@ -126,3 +126,6 @@
     overflow: hidden;
   }
 }
+
+/* Syntax highlighting theme */
+@import "highlight.js/styles/github-dark.css";
