@@ -67,15 +67,45 @@ export default function MarkdownRenderer({ content }: { content: string }) {
                 </MarkdownCodeBlock>
             );
         };
+
         return {
             code: CodeRenderer,
             pre: PreRenderer,
         } as const;
     }, []);
 
+    const allComponents = {
+        ...markdownComponents,
+        h1: ({ node, ...props }: any) => <h1 className="text-2xl font-bold mt-4 mb-2" {...props} />,
+        h2: ({ node, ...props }: any) => <h2 className="text-xl font-bold mt-4 mb-2" {...props} />,
+        h3: ({ node, ...props }: any) => <h3 className="text-lg font-bold mt-4 mb-2" {...props} />,
+        h4: ({ node, ...props }: any) => <h4 className="text-base font-bold mt-4 mb-2" {...props} />,
+        h5: ({ node, ...props }: any) => <h5 className="text-sm font-bold mt-4 mb-2" {...props} />,
+        h6: ({ node, ...props }: any) => <h6 className="text-xs font-bold mt-4 mb-2" {...props} />,
+        p: ({ node, ...props }: any) => <p className="leading-relaxed mt-2 mb-2" {...props} />,
+        ul: ({ node, ...props }: any) => <ul className="list-disc list-inside indent-4 mt-2 mb-2" {...props} />,
+        ol: ({ node, ...props }: any) => <ol className="list-decimal list-inside indent-4 mt-2 mb-2" {...props} />,
+        li: ({ node, ...props }: any) => <li className="leading-relaxed mt-2 mb-2" {...props} />,
+        blockquote: ({ node, ...props }: any) => <blockquote className="border-l-2 border-gray-300 pl-4 mt-2 mb-2" {...props} />,
+        a: ({ node, ...props }: any) => <a className="text-blue-500 mt-2 mb-2" {...props} />,
+        img: ({ node, ...props }: any) => <img className="w-full mt-2 mb-2" {...props} />,
+        hr: ({ node, ...props }: any) => <hr className="my-4 mt-10 mb-10" {...props} />,
+        table: ({ node, ...props }: any) => <table className="w-full mt-2 mb-2" {...props} />,
+        tr: ({ node, ...props }: any) => <tr className="border-b mt-2 mb-2" {...props} />,
+        th: ({ node, ...props }: any) => <th className="px-4 py-2 mt-2 mb-2" {...props} />,
+        td: ({ node, ...props }: any) => <td className="px-4 py-2 mt-2 mb-2" {...props} />,
+        em: ({ node, ...props }: any) => <em className="italic mt-2 mb-2" {...props} />,
+        strong: ({ node, ...props }: any) => <strong className="font-bold mt-2 mb-2" {...props} />,
+        del: ({ node, ...props }: any) => <del className="line-through mt-2 mb-2" {...props} />,
+        ins: ({ node, ...props }: any) => <ins className="underline mt-2 mb-2" {...props} />,
+        sub: ({ node, ...props }: any) => <sub className="text-xs mt-2 mb-2" {...props} />,
+        sup: ({ node, ...props }: any) => <sup className="text-xs mt-2 mb-2" {...props} />,
+        kbd: ({ node, ...props }: any) => <kbd className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm mt-2 mb-2" {...props} />,
+    }
+
     return (
         <ReactMarkdown
-            components={markdownComponents}
+            components={allComponents}
             remarkPlugins={[remarkGfm, remarkFixBoldedCode]}
             rehypePlugins={[rehypeAddParents]}
         >

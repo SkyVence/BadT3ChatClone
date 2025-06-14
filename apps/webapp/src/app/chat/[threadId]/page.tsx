@@ -1,7 +1,7 @@
 "use client";
 import { useBetterChat } from "@/context/betterChatContext";
 import { useChatStore } from "@/lib/statemanager";
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, AlertCircle } from "lucide-react";
 import React from "react";
@@ -10,6 +10,27 @@ import MarkdownRenderer from "@/components/MarkdownRenderer";
 function formatTime(dateString: string) {
     const date = new Date(dateString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function useThrottledValue(value: string, interval = 16) {
+    const [throttled, setThrottled] = useState(value);
+    const lastUpdate = useRef(Date.now());
+
+    useEffect(() => {
+        const now = Date.now();
+        if (now - lastUpdate.current > interval) {
+            setThrottled(value);
+            lastUpdate.current = now;
+        } else {
+            const timeout = setTimeout(() => {
+                setThrottled(value);
+                lastUpdate.current = Date.now();
+            }, interval - (now - lastUpdate.current));
+            return () => clearTimeout(timeout);
+        }
+    }, [value, interval]);
+
+    return throttled;
 }
 
 export default function ChatPage({ params }: { params: Promise<{ threadId: string }> }) {
@@ -54,8 +75,15 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
         .filter(m => m.role === 'assistant' && m.status === 'streaming')
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
 
+
     const displayContent = streamingMessage?.content ?? "";
     const displayStatus: 'streaming' | 'complete' | 'error' = streamingMessage?.status as any ?? 'complete';
+
+    // Add a throttled state for streaming content
+    const throttledContent = useThrottledValue(displayContent, 16);
+
+    // Use MemoizedMarkdownRenderer
+    const MemoizedMarkdownRenderer = React.useMemo(() => React.memo(MarkdownRenderer), []);
 
     return (
         <div className="flex flex-col min-h-screen bg-background">
@@ -75,8 +103,8 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                                 // User message with bubble
                                 <div className="max-w-[80%] lg:max-w-[70%]">
                                     <div className="bg-primary text-primary-foreground rounded-2xl rounded-br-md px-4 py-3 shadow-sm">
-                                        <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                                            {msg.content}
+                                        <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-div:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border text-md">
+                                            <MarkdownRenderer content={String(msg.content ?? "")} />
                                         </div>
                                     </div>
                                     <div className="text-xs text-muted-foreground text-right mt-1 px-1">
@@ -90,10 +118,8 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                                     {msg.status === 'streaming' ? null : (
                                         <>
                                             <div className="text-foreground">
-                                                <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-div:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
-                                                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                                                        <MarkdownRenderer content={String(msg.content ?? "")} />
-                                                    </div>
+                                                <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-div:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border text-md">
+                                                    <MarkdownRenderer content={String(msg.content ?? "")} />
                                                 </div>
                                             </div>
                                             <div className="text-xs text-muted-foreground text-left mt-2 px-1">
@@ -112,10 +138,8 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                     <div className="flex justify-start">
                         <div className="max-w-[100%] lg:max-w-[75%]">
                             <div className="text-foreground">
-                                <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
-                                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed min-h-[20px]">
-                                        <MarkdownRenderer content={displayContent} />
-                                    </div>
+                                <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-div:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border ">
+                                    <MemoizedMarkdownRenderer content={throttledContent} />
                                 </div>
                             </div>
                             {/* Show timestamp if the message is completed */}

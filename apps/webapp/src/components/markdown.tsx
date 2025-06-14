@@ -80,7 +80,7 @@ export function MarkdownCodeBlock({ node, inline, className: clsNameProp, childr
     }
 
     return (
-        <div className="relative my-2 group">
+        <div className="relative my-8 group">
             <div className="flex items-center justify-between bg-muted px-4 py-1 rounded-t-md">
                 <span className="text-xs font-medium text-muted-foreground">{language}</span>
                 <div className="flex items-center gap-2">
