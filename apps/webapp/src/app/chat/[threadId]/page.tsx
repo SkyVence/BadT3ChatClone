@@ -89,10 +89,13 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
 
     // -------- Markdown rendering helpers --------
     const markdownComponents = useMemo(() => {
-        const CodeRenderer = ({ className = "", inline, children, node, ...props }: any) => {
-            // Primary check: is this <code> directly inside a <pre> element?
-            const parentIsPre = node && node.parent && node.parent.tagName === 'pre';
-            const isBlock = parentIsPre || inline === false;
+        const CodeRenderer = ({ className = "", children, node, ...props }: any) => {
+            // Determine if this <code> resides within a <pre> (block code)
+            const isBlock =
+                node &&
+                node.parent &&
+                node.parent.type === 'element' &&
+                node.parent.tagName === 'pre';
 
             if (isBlock) {
                 // Fenced / block code: preserve language class for syntax highlighting
@@ -103,7 +106,7 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                 );
             }
 
-            // Inline code (fallback also covers situations where parent lookup failed but `inline` flag is true)
+            // Inline code styling when not inside <pre>
             const text = Array.isArray(children) ? children.join("") : children;
             return (
                 <code className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm" {...props}>
