@@ -5,8 +5,7 @@ import { useChatStream } from "@/hooks/useChatStream";
 import { useChatStore } from "@/lib/statemanager";
 import { ModelInfo } from "@/models";
 import { ThreadMessage, ThreadSummary } from "@/types/message";
-import { createContext, useContext, type ReactNode } from "react";
-import { useMemo } from "react";
+import { createContext, useContext, type ReactNode, useEffect, useMemo } from "react";
 
 interface BetterChatContextType {
     /* -------- read-only state -------- */
@@ -55,6 +54,13 @@ export function BetterChatProvider({ children }: { children: ReactNode }) {
 
     const actions = useChatActions();
     const { startStream, stopStream, resumeActiveStreams } = useChatStream();
+
+    // Fetch latest threads from the server when the provider mounts so that the
+    // sidebar stays in sync with the database after a full page reload.
+    useEffect(() => {
+        // Fire and forget – any errors are handled inside the hook
+        actions.refetchThreads();
+    }, [actions.refetchThreads]);
 
     const value: BetterChatContextType = {
         messages,

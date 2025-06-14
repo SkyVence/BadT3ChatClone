@@ -108,8 +108,7 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                                                     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
                                                         <ReactMarkdown
                                                             components={{
-                                                                code: (props: any) => <MarkdownCodeBlock {...props}>{props.children}</MarkdownCodeBlock>,
-                                                                p: "div"
+                                                                code: (props: any) => <MarkdownCodeBlock {...props}>{props.children}</MarkdownCodeBlock>
                                                             }}
                                                             remarkPlugins={[remarkGfm, remarkFixBoldedCode]}
                                                         >
@@ -138,8 +137,7 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                                     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed min-h-[20px]">
                                         <ReactMarkdown
                                             components={{
-                                                code: (props: any) => <MarkdownCodeBlock {...props}>{props.children}</MarkdownCodeBlock>,
-                                                p: "div"
+                                                code: (props: any) => <MarkdownCodeBlock {...props}>{props.children}</MarkdownCodeBlock>
                                             }}
                                             remarkPlugins={[remarkGfm, remarkFixBoldedCode]}
                                         >
