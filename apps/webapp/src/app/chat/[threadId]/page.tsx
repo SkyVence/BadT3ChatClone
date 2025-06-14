@@ -25,6 +25,18 @@ function remarkFixBoldedCode() {
     };
 }
 
+// Rehype plugin to attach parent references for each node so that
+// CodeRenderer can reliably check `node.parent.tagName === 'pre'`.
+function rehypeAddParents() {
+    return (tree: any) => {
+        visit(tree, (node: any, _index: any, parent: any) => {
+            if (node && typeof node === "object") {
+                node.parent = parent;
+            }
+        });
+    };
+}
+
 export default function ChatPage({ params }: { params: Promise<{ threadId: string }> }) {
     const { threadId } = React.use(params);
     const {
@@ -147,6 +159,7 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                                                         <ReactMarkdown
                                                             components={markdownComponents}
                                                             remarkPlugins={[remarkGfm, remarkFixBoldedCode]}
+                                                            rehypePlugins={[rehypeAddParents]}
                                                         >
                                                             {msg.content}
                                                         </ReactMarkdown>
@@ -174,6 +187,7 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                                         <ReactMarkdown
                                             components={markdownComponents}
                                             remarkPlugins={[remarkGfm, remarkFixBoldedCode]}
+                                            rehypePlugins={[rehypeAddParents]}
                                         >
                                             {displayContent}
                                         </ReactMarkdown>
