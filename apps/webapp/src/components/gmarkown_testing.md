@@ -1,198 +1,415 @@
-When you talk about "ground search" with AI SDKs, you're almost certainly referring to **Retrieval Augmented Generation (RAG)**. This is a powerful technique that allows Large Language Models (LLMs) to access and incorporate information from external, up-to-date, or proprietary knowledge bases, rather than relying solely on their pre-trained knowledge.
+Creating a WebSocket messaging app in Java involves a server-side component (which handles connections and messages) and a client-side component (which connects and sends/receives messages).
 
-The "ground" refers to your specific data or knowledge base that you want the AI to "search" and use as context.
-
-Here's a breakdown of how to use "ground search" (RAG) with AI SDKs, covering the concepts, components, and a practical example.
+We'll use the standard Java API for WebSockets (JSR 356, `javax.websocket`).
 
 ---
 
-### What is "Ground Search" (RAG)?
+## 1. Server-Side (Java)
 
-RAG combines two main components:
+This will be a simple chat server. You'll need a Java EE/Jakarta EE application server like **Apache Tomcat** or **Eclipse Jetty** to deploy this.
 
-1.  **Retrieval:** A system that searches a knowledge base (your "ground" data) for relevant information based on a user's query.
-2.  **Generation:** An LLM that takes the retrieved information (context) along with the user's original query and generates a coherent and informed response.
+**`ChatServerEndpoint.java`**
 
-**Why use it?**
+```java
+import javax.websocket.*;
+import javax.websocket.server.ServerEndpoint;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
-- **Overcome LLM knowledge cutoffs:** LLMs are trained on data up to a certain point; RAG provides current information.
-- **Reduce hallucinations:** By grounding responses in factual data, LLMs are less likely to make things up.
-- **Incorporate proprietary/private data:** Use your internal documents, databases, or specific domain knowledge.
-- **Provide citations:** The retrieved chunks can often be linked back to their original source.
-- **Improve accuracy and relevance:** Responses are more precise and tailored to your specific data.
+// This annotation defines the WebSocket endpoint URL.
+// Clients will connect to ws://your_server_ip:port/chat
+@ServerEndpoint("/chat")
+public class ChatServerEndpoint {
 
----
+    // A thread-safe set to store all connected client sessions.
+    private static Set<Session> sessions = Collections.synchronizedSet(new HashSet<>());
 
-### Core Components of a RAG System
+    /**
+     * Called when a new WebSocket connection is established.
+     * @param session The session object for the new connection.
+     */
+    @OnOpen
+    public void onOpen(Session session) {
+        sessions.add(session);
+        System.out.println("Client connected: " + session.getId());
+        broadcast("New user joined: " + session.getId());
+    }
 
-To implement "ground search," you'll typically need the following:
+    /**
+     * Called when a message is received from a client.
+     * @param message The text message received.
+     * @param session The session from which the message originated.
+     */
+    @OnMessage
+    public void onMessage(String message, Session session) {
+        System.out.println("Message from " + session.getId() + ": " + message);
+        // Broadcast the message to all connected clients
+        broadcast("User " + session.getId() + ": " + message);
+    }
 
-1.  **Your "Ground" Data:** This can be documents (PDFs, TXT, DOCX), web pages, database records, APIs, etc.
-2.  **Text Splitter/Chunker:** Tools to break down large documents into smaller, manageable pieces (chunks). This is crucial because LLMs have context window limits, and smaller chunks are easier to retrieve precisely.
-3.  **Embedding Model:** An AI model that converts text chunks into numerical representations called "embeddings" (dense vectors). Texts with similar meanings will have similar embeddings.
-    - _Examples:_ OpenAI's `text-embedding-ada-002` , Cohere Embed, various models from Hugging Face.
-4.  **Vector Database (Vector Store):** A specialized database designed to store and efficiently search through these high-dimensional vector embeddings.
-    - _Examples:_ Pinecone, Weaviate, Chroma, FAISS, Qdrant, Milvus, Supabase, pgvector.
-5.  **Retrieval Mechanism:** The logic that takes a user's query, converts it into an embedding, searches the vector database for the most similar document chunks, and returns them.
-6.  **Large Language Model (LLM):** The model that will generate the final answer, using the retrieved context.
-    - _Examples:_ OpenAI's GPT-3.5/4, Anthropic's Claude, Google's Gemini, Llama 2, Mistral.
-7.  **Orchestration Framework (Optional but Recommended):** Libraries that simplify the entire RAG pipeline by providing pre-built components and chains.
-    - _Examples:_ **LangChain**, **LlamaIndex**.
+    /**
+     * Called when a WebSocket connection is closed.
+     * @param session The session that was closed.
+     * @param closeReason The reason for closure.
+     */
+    @OnClose
+    public void onClose(Session session, CloseReason closeReason) {
+        sessions.remove(session);
+        System.out.println("Client disconnected: " + session.getId() + " - " + closeReason.getReasonPhrase());
+        broadcast("User " + session.getId() + " left.");
+    }
 
----
+    /**
+     * Called when an error occurs on a WebSocket connection.
+     * @param session The session where the error occurred.
+     * @param throwable The exception that caused the error.
+     */
+    @OnError
+    public void onError(Session session, Throwable throwable) {
+        System.err.println("Error on session " + session.getId() + ": " + throwable.getMessage());
+        throwable.printStackTrace();
+    }
 
-### How AI SDKs Fit In
-
-- **Direct LLM SDKs (OpenAI, Anthropic, Google AI, Azure AI):** These SDKs are primarily used for the _generation_ step. You'll use them to send the user's query _plus_ the retrieved context to the LLM. They don't inherently perform the "ground search" themselves.
-- **RAG Frameworks (LangChain, LlamaIndex):** These are the most relevant "AI SDKs" for implementing "ground search." They provide abstractions and integrations for all the components listed above (text splitting, embeddings, vector stores, retrievers, and LLM integration).
-
----
-
-### Step-by-Step Implementation (Conceptual)
-
-1.  **Load Data:** Get your documents or data into a usable format.
-2.  **Split Data:** Break documents into smaller, overlapping chunks.
-3.  **Create Embeddings:** Convert each chunk into a vector embedding using an embedding model.
-4.  **Store Embeddings:** Store these embeddings (and optionally the original text chunks) in a vector database. This is your searchable "ground."
-5.  **User Query:** When a user asks a question:
-    a. **Embed Query:** Convert the user's query into an embedding using the _same_ embedding model.
-    b. **Retrieve Relevant Chunks:** Search the vector database for the most similar embeddings to the query embedding. These are your "ground search" results.
-6.  **Construct Prompt:** Take the user's original query and the retrieved relevant chunks, and combine them into a single prompt for the LLM.
-    - _Example Prompt Structure:_ "Based on the following context, answer the question. Context: [Retrieved Chunks]. Question: [User Query]"
-7.  **Generate Response:** Send the constructed prompt to the LLM using its SDK.
-8.  **Return Answer:** The LLM generates an answer grounded in your data.
-
----
-
-### Practical Example with LangChain (Python)
-
-LangChain is an excellent framework for implementing RAG. We'll use:
-
-- **OpenAI SDK:** For embeddings and the LLM.
-- **Chroma:** A lightweight, in-memory (or persistent) vector database, good for local examples.
-- **PDF Loader:** To load a sample PDF document.
-
-**Prerequisites:**
-
-```bash
-pip install langchain langchain-openai pypdf chromadb
+    /**
+     * Helper method to send a message to all connected clients.
+     * @param message The message to broadcast.
+     */
+    private void broadcast(String message) {
+        for (Session session : sessions) {
+            try {
+                // getBasicRemote() is synchronous, getAsyncRemote() is asynchronous
+                session.getBasicRemote().sendText(message);
+            } catch (IOException e) {
+                System.err.println("Error broadcasting to " + session.getId() + ": " + e.getMessage());
+                // Optionally remove the session if sending fails consistently
+            }
+        }
+    }
+}
 ```
 
-**Set your API Key:**
+---
 
-```python
-import os
-os.environ["OPENAI_API_KEY"] = "YOUR_OPENAI_API_KEY"
+## 2. Client-Side (Java)
+
+This is a simple command-line Java client.
+
+**`ChatClientEndpoint.java`**
+
+```java
+import javax.websocket.*;
+import java.io.IOException;
+import java.net.URI;
+import java.util.Scanner;
+
+// This annotation marks this class as a WebSocket client endpoint.
+@ClientEndpoint
+public class ChatClientEndpoint {
+
+    private Session session; // The WebSocket session with the server
+
+    /**
+     * Called when the client successfully connects to the server.
+     * @param session The session object for this connection.
+     */
+    @OnOpen
+    public void onOpen(Session session) {
+        this.session = session;
+        System.out.println("Connected to chat server: " + session.getId());
+    }
+
+    /**
+     * Called when a message is received from the server.
+     * @param message The text message received.
+     */
+    @OnMessage
+    public void onMessage(String message) {
+        System.out.println("Received: " + message);
+    }
+
+    /**
+     * Called when the connection to the server is closed.
+     * @param session The session that was closed.
+     * @param closeReason The reason for closure.
+     */
+    @OnClose
+    public void onClose(Session session, CloseReason closeReason) {
+        System.out.println("Disconnected from server: " + closeReason.getReasonPhrase());
+    }
+
+    /**
+     * Called when an error occurs on the connection.
+     * @param session The session where the error occurred.
+     * @param throwable The exception that caused the error.
+     */
+    @OnError
+    public void onError(Session session, Throwable throwable) {
+        System.err.println("Error on client session: " + throwable.getMessage());
+        throwable.printStackTrace();
+    }
+
+    /**
+     * Sends a message to the server.
+     * @param message The message to send.
+     * @throws IOException If an I/O error occurs.
+     */
+    public void sendMessage(String message) throws IOException {
+        if (session != null && session.isOpen()) {
+            session.getBasicRemote().sendText(message);
+        } else {
+            System.err.println("Cannot send message: Not connected or session closed.");
+        }
+    }
+
+    public static void main(String[] args) {
+        // Get the WebSocket container instance
+        WebSocketContainer container = ContainerProvider.getWebSocketContainer();
+        // The URI of the server WebSocket endpoint
+        String uri = "ws://localhost:8080/chat"; // Adjust port if needed
+
+        ChatClientEndpoint client = new ChatClientEndpoint();
+        try {
+            // Connect to the server
+            container.connectToServer(client, URI.create(uri));
+
+            // Allow user to type messages
+            Scanner scanner = new Scanner(System.in);
+            System.out.println("Type messages and press Enter. Type 'exit' to quit.");
+            while (true) {
+                System.out.print("> ");
+                String message = scanner.nextLine();
+                if ("exit".equalsIgnoreCase(message)) {
+                    break;
+                }
+                client.sendMessage(message);
+            }
+        } catch (DeploymentException | IOException e) {
+            System.err.println("Failed to connect or communicate with server: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            // Close the session when done
+            if (client.session != null && client.session.isOpen()) {
+                try {
+                    client.session.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+}
 ```
-
-**Code Example:**
-
-```python
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_community.vectorstores import Chroma
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.prompts import ChatPromptTemplate
-
-# --- 1. Load Your "Ground" Data ---
-# Replace 'example.pdf' with your actual document path
-# You can download a sample PDF or create a simple one.
-# For example, a PDF about "Artificial Intelligence"
-loader = PyPDFLoader("example.pdf")
-docs = loader.load()
-
-print(f"Loaded {len(docs)} pages from the PDF.")
-
-# --- 2. Split Data into Chunks ---
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1000,
-    chunk_overlap=200,
-    length_function=len,
-    is_separator_regex=False,
-)
-chunks = text_splitter.split_documents(docs)
-
-print(f"Split into {len(chunks)} chunks.")
-
-# --- 3. Create Embeddings and Store in Vector Database ---
-# Initialize OpenAI Embeddings model
-embeddings = OpenAIEmbeddings()
-
-# Create a Chroma vector store from the document chunks and embeddings
-# This step performs the "grounding" by indexing your data.
-print("Creating vector store (this might take a moment)...")
-vectorstore = Chroma.from_documents(chunks, embeddings)
-print("Vector store created.")
-
-# --- 4. Define the Retrieval Mechanism ---
-# Create a retriever from the vector store.
-# This will be used to search for relevant chunks based on a query.
-retriever = vectorstore.as_retriever(search_kwargs={"k": 3}) # Retrieve top 3 most relevant chunks
-
-# --- 5. Set up the LLM for Generation ---
-llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.1)
-
-# --- 6. Define the Prompt Template for RAG ---
-# This template instructs the LLM to use the provided context.
-prompt = ChatPromptTemplate.from_template("""
-Answer the user's question based on the provided context.
-If you don't know the answer, just say that you don't know, don't try to make up an answer.
-
-Context:
-{context}
-
-Question:
-{input}
-""")
-
-# --- 7. Create the RAG Chain ---
-# This chain combines the retrieved documents with the prompt and sends to the LLM.
-document_chain = create_stuff_documents_chain(llm, prompt)
-retrieval_chain = create_retrieval_chain(retriever, document_chain)
-
-# --- 8. Perform "Ground Search" and Get Response ---
-print("\nReady to answer questions based on your document!")
-
-while True:
-    user_question = input("\nYour question (type 'exit' to quit): ")
-    if user_question.lower() == 'exit':
-        break
-
-    print(f"Searching for: '{user_question}'...")
-    response = retrieval_chain.invoke({"input": user_question})
-
-    print("\n--- AI's Answer ---")
-    print(response["answer"])
-    print("-------------------\n")
-
-    # Optional: Show the source documents that were used
-    # print("Source documents used:")
-    # for doc in response["context"]:
-    #     print(f"- Page: {doc.metadata.get('page', 'N/A')}, Source: {doc.metadata.get('source', 'N/A')}")
-    #     print(f"  Content snippet: {doc.page_content[:150]}...") # Show a snippet of the content
-```
-
-**To run this example:**
-
-1.  Save the code as a Python file (e.g., `rag_example.py`).
-2.  Place a PDF file named `example.pdf` in the same directory as your script. You can create a simple one with some text about a topic you'd like to query.
-3.  Replace `"YOUR_OPENAI_API_KEY"` with your actual OpenAI API key.
-4.  Run `python rag_example.py` in your terminal.
 
 ---
 
-### Key Considerations for Effective "Ground Search" (RAG)
+## 3. Client-Side (JavaScript/Browser)
 
-- **Chunking Strategy:** The size and overlap of your text chunks significantly impact retrieval quality. Experiment with different values.
-- **Embedding Model Choice:** Different embedding models have different performance characteristics and cost. Choose one that suits your needs.
-- **Vector Database Choice:** Consider scalability, persistence, cloud vs. local, and features when selecting a vector DB.
-- **Retrieval Strategy:**
-  - **`k` value:** How many top similar chunks to retrieve? Too few might miss context, too many might exceed LLM context window or introduce noise.
-  - **Maximal Marginal Relevance (MMR):** A technique to retrieve diverse but relevant chunks, avoiding redundancy.
-- **Prompt Engineering:** The way you structure the prompt (especially how you instruct the LLM to use the context) is crucial for good answers.
-- **Evaluation:** How do you measure if your RAG system is performing well? Tools like Ragas can help.
-- **Cost:** Be mindful of API calls for embeddings and LLM inferences, especially with large datasets or high query volumes.
+This is a common way to interact with WebSockets from a web page.
 
-By understanding these components and using frameworks like LangChain or LlamaIndex, you can effectively implement "ground search" to build powerful, data-aware AI applications.
+**`index.html`**
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Chat Client</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #messages { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; margin-bottom: 10px; }
+        input[type="text"] { width: 70%; padding: 8px; }
+        button { padding: 8px 15px; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Chat</h1>
+    <div id="messages"></div>
+    <input type="text" id="messageInput" placeholder="Type your message...">
+    <button onclick="sendMessage()">Send</button>
+
+    <script>
+        const messagesDiv = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+
+        // Create a new WebSocket connection
+        // Adjust the URL to your server's IP and port if not localhost:8080
+        const ws = new WebSocket("ws://localhost:8080/chat");
+
+        // Event listener for when the connection is opened
+        ws.onopen = function(event) {
+            messagesDiv.innerHTML += "<p><em>Connected to chat server.</em></p>";
+        };
+
+        // Event listener for when a message is received from the server
+        ws.onmessage = function(event) {
+            messagesDiv.innerHTML += "<p>" + event.data + "</p>";
+            messagesDiv.scrollTop = messagesDiv.scrollHeight; // Scroll to bottom
+        };
+
+        // Event listener for when the connection is closed
+        ws.onclose = function(event) {
+            messagesDiv.innerHTML += "<p><em>Disconnected from chat server.</em></p>";
+        };
+
+        // Event listener for errors
+        ws.onerror = function(event) {
+            messagesDiv.innerHTML += "<p style='color:red;'><em>Error: " + event.message + "</em></p>";
+        };
+
+        // Function to send a message to the server
+        function sendMessage() {
+            const message = messageInput.value;
+            if (message) {
+                ws.send(message); // Send the message
+                messageInput.value = ''; // Clear the input field
+            }
+        }
+
+        // Allow sending message by pressing Enter key
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
+```
+
+---
+
+## How to Run and Execute
+
+### 1. Server Setup (Apache Tomcat Example)
+
+*   **Download Tomcat:** Get Apache Tomcat (e.g., version 9 or 10) from the official website.
+*   **Maven Project:**
+    *   Create a new Maven Web Application project.
+    *   Add the `javax.websocket-api` dependency to your `pom.xml`:
+        ```xml
+        <dependencies>
+            <dependency>
+                <groupId>javax.websocket</groupId>
+                <artifactId>javax.websocket-api</artifactId>
+                <version>1.1</version> <!-- Or 1.0, 1.1, 1.2.1, etc. -->
+                <scope>provided</scope> <!-- Provided by the server -->
+            </dependency>
+            <!-- If using Jakarta EE (Tomcat 10+), use jakarta.websocket-api -->
+            <!--
+            <dependency>
+                <groupId>jakarta.websocket</groupId>
+                <artifactId>jakarta.websocket-api</artifactId>
+                <version>2.1.0</version>
+                <scope>provided</scope>
+            </dependency>
+            -->
+        </dependencies>
+        <build>
+            <finalName>websocket-chat</finalName> <!-- Name of your WAR file -->
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.8.1</version>
+                    <configuration>
+                        <source>1.8</source> <!-- Or higher, e.g., 11, 17 -->
+                        <target>1.8</target>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-war-plugin</artifactId>
+                    <version>3.3.2</version>
+                </plugin>
+            </plugins>
+        </build>
+        ```
+    *   Place `ChatServerEndpoint.java` in `src/main/java/your/package/name/`.
+    *   Build the project: `mvn clean package`. This will create a `websocket-chat.war` file in your `target` directory.
+*   **Deploy:** Copy the `websocket-chat.war` file to Tomcat's `webapps` directory.
+*   **Start Tomcat:** Run `startup.bat` (Windows) or `startup.sh` (Linux/macOS) from Tomcat's `bin` directory.
+
+### 2. Java Client Setup
+
+*   **Maven Project:**
+    *   Create a new Maven Java project.
+    *   Add the following dependencies to your `pom.xml`:
+        ```xml
+        <dependencies>
+            <dependency>
+                <groupId>javax.websocket</groupId>
+                <artifactId>javax.websocket-api</artifactId>
+                <version>1.1</version>
+            </dependency>
+            <!-- Tyrus is a reference implementation for JSR 356 client -->
+            <dependency>
+                <groupId>org.glassfish.tyrus</groupId>
+                <artifactId>tyrus-standalone-client</artifactId>
+                <version>1.17</version> <!-- Use a compatible version -->
+            </dependency>
+            <!-- If using Jakarta EE (Tomcat 10+), use jakarta.websocket-api and Tyrus Jakarta client -->
+            <!--
+            <dependency>
+                <groupId>jakarta.websocket</groupId>
+                <artifactId>jakarta.websocket-api</artifactId>
+                <version>2.1.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.glassfish.tyrus</groupId>
+                <artifactId>tyrus-standalone-client-jdk</artifactId>
+                <version>2.1.0</version>
+            </dependency>
+            -->
+        </dependencies>
+        <build>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.8.1</version>
+                    <configuration>
+                        <source>1.8</source>
+                        <target>1.8</target>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>exec-maven-plugin</artifactId>
+                    <version>3.0.0</version>
+                    <configuration>
+                        <mainClass>ChatClientEndpoint</mainClass>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </build>
+        ```
+    *   Place `ChatClientEndpoint.java` in `src/main/java/`.
+*   **Run:**
+    *   From your IDE (IntelliJ, Eclipse), right-click `ChatClientEndpoint.java` and "Run as Java Application".
+    *   From the command line in the project root: `mvn exec:java`
+
+### 3. JavaScript Client Setup
+
+*   Save the `index.html` file to your computer.
+*   Open the `index.html` file in any modern web browser (Chrome, Firefox, Edge).
+
+---
+
+## Execution Flow (Sending/Receiving Messages)
+
+1.  **Start Tomcat:** The `ChatServerEndpoint` will be deployed and ready to accept connections on `ws://localhost:8080/chat` (or your server's IP/port).
+2.  **Run Java Client:**
+    *   The `main` method in `ChatClientEndpoint` will create a `WebSocketContainer` and attempt to `connectToServer`.
+    *   The `@OnOpen` method in `ChatClientEndpoint` will be called, printing "Connected...".
+    *   You can now type messages in your console. When you press Enter, `client.sendMessage()` will be called, which uses `session.getBasicRemote().sendText()` to send the message to the server.
+    *   When the server receives a message, its `@OnMessage` method in `ChatServerEndpoint` is triggered. It then calls `broadcast()`, which iterates through all connected `sessions` and uses `session.getBasicRemote().sendText()` to send the message back to all clients (including the sender).
+    *   When the Java client receives a message, its `@OnMessage` method is triggered, printing "Received: ...".
+3.  **Open HTML Client:**
+    *   The JavaScript `new WebSocket("ws://localhost:8080/chat")` will attempt to connect.
+    *   The `ws.onopen` event will fire, updating the HTML.
+    *   Type a message in the input field and click "Send" or press Enter. The `sendMessage()` function will call `ws.send(message)`.
+    *   The server's `@OnMessage` will receive it and broadcast it.
+    *   The JavaScript client's `ws.onmessage` event will fire, updating the `messagesDiv` with the received message.
+
+You can run multiple Java clients and/or open multiple browser tabs with `index.html` to see them all communicate in real-time through the single Java WebSocket server.
