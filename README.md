@@ -18,6 +18,7 @@ Currently support only bring your own key, those keys are stored in a db and enc
 - **shadcn/ui** – Reusable UI components
 - **Drizzle ORM** – TypeScript-first database access
 - **PostgreSQL** – Reliable, scalable database
+- **Redis** - In memory db - Used for pub/sub only
 - **Turborepo** – Monorepo build system - Only using it because i can run script in one terminal window (Small laptop screen)
 - **BetterAuth** - Authentication library - Social provider Github already setup
 
@@ -57,6 +58,8 @@ fast-chatapp/
    ```
 2. **Configure your database**
    - Set up PostgreSQL
+   - Set up Redis
+   - Set up Social Provider (GITHUB Already added)
    - Update `apps/webapp/.env` with your DB credentials
 3. **Apply the schema**
    ```bash

@@ -8,7 +8,7 @@ import { Textarea } from "@/components/chat/textarea-chat"
 import { Globe, Paperclip, ArrowUp, ChevronDown, Check, ChevronsUpDown } from "lucide-react"
 import { ModelSelector } from "@/components/ui/model-selector"
 import { models } from "@/models"
-import { useStreamer } from "@/context/chat"
+import { useBetterChat } from "@/context/betterChatContext"
 
 interface ChatInputProps {
     handleSend: (message: string) => void;
@@ -20,7 +20,7 @@ export function ChatInput({
     isLoading = false
 }: ChatInputProps) {
     const [message, setMessage] = useState("")
-    const { model, setModel } = useStreamer()
+    const { model, setModel } = useBetterChat()
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -35,8 +35,8 @@ export function ChatInput({
     }
 
     return (
-        <div className="relative bg-muted rounded-lg border-t border-l border-r border-border p-1">
-            <div className="relative bg-card rounded-lg border-t border-l border-r border-border p-4">
+        <div className="relative bg-muted/50 rounded-lg border-t border-l border-r border-border p-1">
+            <div className="relative bg-card/30 backdrop-blur-sm rounded-lg border-t border-l border-r border-border p-4">
                 {/* Main input area */}
                 <div className="mb-4">
                     <Textarea

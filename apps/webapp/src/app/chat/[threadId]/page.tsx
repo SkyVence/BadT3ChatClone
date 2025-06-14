@@ -1,60 +1,89 @@
 "use client";
-import { useStreamer } from "@/context/chat";
-import { useParams } from "next/navigation";
-import { useEffect, useRef } from "react";
-import { useMessageStream } from "@/hooks/use-message-stream";
+import { useBetterChat } from "@/context/betterChatContext";
+import { useChatStore } from "@/lib/statemanager";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, AlertCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
+import React from "react";
+import MarkdownRenderer from "@/components/MarkdownRenderer";
 
 function formatTime(dateString: string) {
     const date = new Date(dateString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function ChatPage({ children }: { children?: React.ReactNode }) {
-    const { messageId, setThreadId, messages, isMessagesLoading, clearMessageId } = useStreamer();
-    const params = useParams();
-    const threadId = params.threadId as string;
+function useThrottledValue(value: string, interval = 16) {
+    const [throttled, setThrottled] = useState(value);
+    const lastUpdate = useRef(Date.now());
+
+    useEffect(() => {
+        const now = Date.now();
+        if (now - lastUpdate.current > interval) {
+            setThrottled(value);
+            lastUpdate.current = now;
+        } else {
+            const timeout = setTimeout(() => {
+                setThrottled(value);
+                lastUpdate.current = Date.now();
+            }, interval - (now - lastUpdate.current));
+            return () => clearTimeout(timeout);
+        }
+    }, [value, interval]);
+
+    return throttled;
+}
+
+export default function ChatPage({ params }: { params: Promise<{ threadId: string }> }) {
+    const { threadId } = React.use(params);
+    const {
+        messages,
+        isLoadingThread,
+        isStreaming,
+        selectThread,
+        fetchThreadContext,
+        resumeActiveStreams,
+        status,
+        error,
+    } = useBetterChat();
+    const setStatus = useChatStore(state => state.setStatus);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        setThreadId(threadId);
-    }, [threadId, setThreadId]);
+        selectThread(threadId);
+        fetchThreadContext(threadId);
+    }, [threadId, fetchThreadContext]);
 
     // Auto-scroll to bottom when messages change
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [messages, isMessagesLoading, messageId]);
+    }, [messages, isLoadingThread, isStreaming]);
 
-    // Get the current streaming message details for initial content
-    const currentStreamingMessage = messageId ? messages.find(msg => msg.id === messageId) : null;
-    const initialStreamingContent = currentStreamingMessage?.content || '';
-    const initialStreamingStatus = currentStreamingMessage?.status as 'streaming' | 'complete' | 'error' || 'streaming';
+    useEffect(() => {
+        // Auto-resume any streaming assistant messages after (re)load or on new messages
+        if (messages.some(m => m.role === 'assistant' && m.status === 'streaming')) {
+            resumeActiveStreams(messages);
+        } else if (status === 'streaming') {
+            // No streaming messages but status still streaming -> reset
+            setStatus('idle');
+        }
+    }, [messages, status]);
 
-    // Streaming logic with proper completion handling and resumption
-    const stream = useMessageStream({
-        messageId: messageId || "",
-        initialStatus: initialStreamingStatus,
-        onComplete: (fullContent) => {
-            console.log('Stream completed, clearing messageId');
-            clearMessageId(); // Clear messageId when stream completes
-        },
-        onError: (error) => {
-            console.log('Stream error, clearing messageId');
-            clearMessageId(); // Clear messageId on error
-        },
-    });
+    // Derive currently-streaming assistant message (if any)
+    const streamingMessage = messages
+        .filter(m => m.role === 'assistant' && m.status === 'streaming')
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
 
-    // Use the stream content if available, otherwise fall back to the message content
-    const displayContent = stream.content || initialStreamingContent;
-    const displayStatus = stream.status || initialStreamingStatus;
-    const displayError = stream.error;
-    const isConnected = stream.isConnected;
-    const reconnect = stream.reconnect;
-    const retryCount = stream.retryCount;
+
+    const displayContent = streamingMessage?.content ?? "";
+    const displayStatus: 'streaming' | 'complete' | 'error' = streamingMessage?.status as any ?? 'complete';
+
+    // Add a throttled state for streaming content
+    const throttledContent = useThrottledValue(displayContent, 16);
+
+    // Use MemoizedMarkdownRenderer
+    const MemoizedMarkdownRenderer = React.useMemo(() => React.memo(MarkdownRenderer), []);
 
     return (
         <div className="flex flex-col min-h-screen bg-background">
@@ -62,16 +91,9 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                 ref={scrollRef}
                 className="flex-1 flex flex-col gap-6 p-4 pb-32 max-w-4xl w-full mx-auto overflow-y-auto"
             >
-                {isMessagesLoading ? (
+                {isLoadingThread ? (
                     <div className="flex items-center justify-center py-8">
                         <div className="text-muted-foreground">Loading messages...</div>
-                    </div>
-                ) : messages.length === 0 ? (
-                    <div className="flex items-center justify-center py-8">
-                        <div className="text-center">
-                            <h3 className="text-lg font-medium text-foreground mb-2">Start a conversation</h3>
-                            <p className="text-muted-foreground">Ask me anything to get started!</p>
-                        </div>
                     </div>
                 ) : (
                     // Display messages in chronological order (oldest to newest)
@@ -81,8 +103,8 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                                 // User message with bubble
                                 <div className="max-w-[80%] lg:max-w-[70%]">
                                     <div className="bg-primary text-primary-foreground rounded-2xl rounded-br-md px-4 py-3 shadow-sm">
-                                        <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                                            {msg.content}
+                                        <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-div:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border text-md">
+                                            <MarkdownRenderer content={String(msg.content ?? "")} />
                                         </div>
                                     </div>
                                     <div className="text-xs text-muted-foreground text-right mt-1 px-1">
@@ -91,15 +113,13 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                                 </div>
                             ) : (
                                 // Assistant message without bubble
-                                <div className="max-w-[85%] lg:max-w-[75%]">
+                                <div className="max-w-[100%] lg:max-w-[75%]">
                                     {/* Don't render the content if this message is currently streaming - let the streaming component handle it */}
-                                    {msg.id === messageId ? null : (
+                                    {msg.status === 'streaming' ? null : (
                                         <>
                                             <div className="text-foreground">
-                                                <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
-                                                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                                                        {msg.content}
-                                                    </div>
+                                                <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-div:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border text-md">
+                                                    <MarkdownRenderer content={String(msg.content ?? "")} />
                                                 </div>
                                             </div>
                                             <div className="text-xs text-muted-foreground text-left mt-2 px-1">
@@ -114,102 +134,82 @@ export default function ChatPage({ children }: { children?: React.ReactNode }) {
                 )}
 
                 {/* Streaming message bubble - appears after the last message or replaces the streaming message */}
-                {messageId && displayContent && (
+                {streamingMessage && displayContent && (
                     <div className="flex justify-start">
-                        <div className="max-w-[85%] lg:max-w-[75%]">
+                        <div className="max-w-[100%] lg:max-w-[75%]">
                             <div className="text-foreground">
-                                <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
-                                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed min-h-[20px]">
-                                        {displayContent}
-                                    </div>
+                                <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-div:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border ">
+                                    <MemoizedMarkdownRenderer content={throttledContent} />
                                 </div>
                             </div>
                             {/* Show timestamp if the message is completed */}
-                            {displayStatus === 'complete' && currentStreamingMessage && (
+                            {displayStatus === 'complete' && (
                                 <div className="text-xs text-muted-foreground text-left mt-2 px-1">
-                                    {formatTime(currentStreamingMessage.createdAt)}
+                                    {formatTime(streamingMessage?.createdAt ?? new Date().toISOString())}
                                 </div>
                             )}
                         </div>
                     </div>
                 )}
-
                 {/* Streaming status */}
-                {messageId && (
-                    <div className="pl-2">
-                        {displayStatus === 'streaming' && (
-                            <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                                <div className="flex items-center gap-2">
-                                    <div className="flex space-x-1">
-                                        <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div>
-                                        <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                                        <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                                    </div>
-                                    <span className="text-xs">
-                                        {stream.content ? 'Thinking...' : 'Resuming stream...'}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <div className={cn(
-                                        "w-2 h-2 rounded-full",
-                                        isConnected ? "bg-green-500" : "bg-red-500"
-                                    )} />
-                                    <span className="text-xs">
-                                        {isConnected ? 'Connected' : retryCount > 0 ? `Retrying... (${retryCount})` : 'Connecting...'}
-                                    </span>
-                                </div>
-                                {!isConnected && retryCount > 0 && (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={reconnect}
-                                        className="h-6 px-2 text-xs"
-                                    >
-                                        <RefreshCw className="h-3 w-3 mr-1" />
-                                        Reconnect
-                                    </Button>
-                                )}
+                {status === "streaming" && (
+                    <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                            <div className="flex space-x-1">
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div>
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                             </div>
-                        )}
-                        {displayStatus === 'error' && (
-                            <div className="flex items-start gap-2 mt-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                                <AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
-                                <div className="flex-1">
-                                    <div className="text-sm font-medium text-destructive">
-                                        Error occurred
-                                    </div>
-                                    <div className="text-sm text-destructive/80 mt-1">
-                                        {displayError || 'An unknown error occurred while streaming the response.'}
-                                    </div>
-                                    {retryCount > 0 && (
-                                        <div className="text-xs text-destructive/60 mt-1">
-                                            Attempted {retryCount} reconnection{retryCount !== 1 ? 's' : ''}
-                                        </div>
-                                    )}
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={reconnect}
-                                        className="mt-2 h-7 px-3 text-xs"
-                                    >
-                                        <RefreshCw className="h-3 w-3 mr-1" />
-                                        Retry
-                                    </Button>
-                                </div>
+                            <span className="text-xs">
+                                {displayContent ? "Generating response..." : "Resuming stream…"}
+                            </span>
+                        </div>
+                    </div>
+                )}
+                {status === 'sending' && (
+                    <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                            <div className="flex space-x-1">
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div>
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                                <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                             </div>
-                        )}
-                        {displayStatus === 'complete' && displayContent && (
-                            <div className="mt-1">
-                                <div className="text-xs text-muted-foreground">
-                                    ✓ Response complete
-                                </div>
+                            <span className="text-xs">
+                                Sending message...
+                            </span>
+                        </div>
+                    </div>
+                )}
+                {status === 'error' && (
+                    <div className="flex items-start gap-2 mt-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                        <AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                            <div className="text-sm font-medium text-destructive">
+                                Error occurred
                             </div>
-                        )}
+                            <div className="text-sm text-destructive/80 mt-1">
+                                {error || 'An unknown error occurred while streaming the response.'}
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => resumeActiveStreams(messages)}
+                                className="mt-2 h-7 px-3 text-xs"
+                            >
+                                <RefreshCw className="h-3 w-3 mr-1" />
+                                Retry
+                            </Button>
+                        </div>
+                    </div>
+                )}
+                {status === 'idle' && displayContent && (
+                    <div className="mt-1">
+                        <div className="text-xs text-muted-foreground">
+                            ✓ Response complete
+                        </div>
                     </div>
                 )}
             </div>
-            {/* Input area (children) pinned to bottom */}
-            {children}
-        </div>
+        </div >
     );
 } 

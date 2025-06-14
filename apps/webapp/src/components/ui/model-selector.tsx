@@ -137,7 +137,6 @@ export function ModelSelector({ selectedModel, onSelectModel, onToggleFavorite }
             <DropdownMenu open={open} onOpenChange={setOpen}>
                 <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="flex items-center gap-2 px-3 py-2 h-auto min-w-0">
-                        <div className={cn("text-lg flex-shrink-0", currentModel.color)}>{currentModel.providerIcon}</div>
                         <span className="text-sm font-medium truncate">{currentModel.name.replace("\n", " ")}</span>
                         <ChevronDown className="h-4 w-4 opacity-50 flex-shrink-0" />
                     </Button>
@@ -272,7 +271,7 @@ export function ModelSelector({ selectedModel, onSelectModel, onToggleFavorite }
                                                                 className="flex items-center gap-2 p-2 rounded hover:bg-accent cursor-pointer"
                                                                 onClick={() => handleFilterToggle(feature as ModelFeature)}
                                                             >
-                                                                <div className="w-4 h-4 border border-gray-600 rounded flex items-center justify-center flex-shrink-0">
+                                                                <div className="w-4 h-4 border border-gray-600 rounded flex items-center justify-center flex-shrink0">
                                                                     {selectedFilters.includes(feature as ModelFeature) && (
                                                                         <Check className="h-3 w-3 text-blue-400" />
                                                                     )}
@@ -382,7 +381,7 @@ export function ModelSelector({ selectedModel, onSelectModel, onToggleFavorite }
                                                                     className="flex items-center gap-2 p-2 rounded hover:bg-accent cursor-pointer"
                                                                     onClick={() => handleFilterToggle(feature as ModelFeature)}
                                                                 >
-                                                                    <div className="w-4 h-4 border border-gray-600 rounded flex items-center justify-center flex-shrink-0">
+                                                                    <div className="w-4 h-4 border border-gray-600 rounded flex items-center justify-center flex-shrink0">
                                                                         {selectedFilters.includes(feature as ModelFeature) && (
                                                                             <Check className="h-3 w-3 text-blue-400" />
                                                                         )}
