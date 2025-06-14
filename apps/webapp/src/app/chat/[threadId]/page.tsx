@@ -8,6 +8,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { visit } from "unist-util-visit";
 import React from "react";
+import { MarkdownCodeBlock } from "@/components/markdown";
 
 function formatTime(dateString: string) {
     const date = new Date(dateString);
@@ -85,18 +86,13 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
 
     // -------- Markdown rendering helpers --------
     const markdownComponents = useMemo(() => {
-        const CodeRenderer = ({ className = "", inline, children, node, ...props }: any) => {
-            // Detect fenced / block code: parent <pre> element in the HAST
-            const parent = (node as any)?.parent;
-            const isBlock = parent && parent.type === 'element' && typeof parent.tagName === 'string' && parent.tagName.toLowerCase() === 'pre';
+        const CodeRenderer = ({ className = "", children, node, ...props }: any) => {
+            // Detect block code: the direct parent must be a <pre> element
+            const isBlock = typeof node?.parent?.tagName === "string" && node.parent.tagName.toLowerCase() === "pre";
 
             if (isBlock) {
-                // Fenced / block code: preserve language class for syntax highlighting
-                return (
-                    <code className={`text-sm font-mono ${className}`} {...props}>
-                        {children}
-                    </code>
-                );
+                // Block code will be rendered by PreRenderer to include toolbar, so render nothing here to avoid duplication
+                return null;
             }
 
             // Inline code styling when not inside <pre>
@@ -108,11 +104,21 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
             );
         };
 
-        const PreRenderer = ({ children, ...props }: any) => (
-            <pre className="my-2 rounded-md bg-muted overflow-auto border border-border p-3" {...props}>
-                {children}
-            </pre>
-        );
+        const PreRenderer = ({ children, ...props }: any) => {
+            // children expected to be a single <code> element
+            const codeElem: any = Array.isArray(children) ? children[0] : children;
+            const className = codeElem?.props?.className || "";
+            let codeString = "";
+            const raw = codeElem?.props?.children;
+            if (typeof raw === "string") codeString = raw;
+            else if (Array.isArray(raw)) codeString = raw.join("");
+
+            return (
+                <MarkdownCodeBlock className={className} {...props}>
+                    {codeString}
+                </MarkdownCodeBlock>
+            );
+        };
 
         return {
             code: CodeRenderer,
