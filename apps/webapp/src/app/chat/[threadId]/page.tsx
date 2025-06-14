@@ -1,7 +1,7 @@
 "use client";
 import { useBetterChat } from "@/context/betterChatContext";
 import { useChatStore } from "@/lib/statemanager";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, AlertCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -71,6 +71,28 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
     const displayContent = streamingMessage?.content ?? "";
     const displayStatus: 'streaming' | 'complete' | 'error' = streamingMessage?.status as any ?? 'complete';
 
+    // -------- Markdown rendering helpers --------
+    const markdownComponents = useMemo(() => {
+        const CodeRenderer = ({ inline, className, children, ...props }: any) => {
+            const codeChildren = Array.isArray(children) ? children.join("") : children;
+            if (inline) {
+                return (
+                    <code className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm" {...props}>
+                        {codeChildren}
+                    </code>
+                );
+            }
+            // Block (fenced) code
+            return (
+                <MarkdownCodeBlock className={className}>{codeChildren}</MarkdownCodeBlock>
+            );
+        };
+
+        const PreRenderer = ({ children }: any) => <>{children}</>;
+
+        return { code: CodeRenderer, pre: PreRenderer } as const;
+    }, []);
+
     return (
         <div className="flex flex-col min-h-screen bg-background">
             <div
@@ -107,25 +129,7 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                                                 <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-div:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
                                                     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
                                                         <ReactMarkdown
-                                                            components={{
-                                                                code: ({ inline, className, children, ...props }: any) => {
-                                                                    const codeChildren = Array.isArray(children) ? children.join("") : children;
-                                                                    if (inline) {
-                                                                        return (
-                                                                            <code className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm" {...props}>
-                                                                                {codeChildren}
-                                                                            </code>
-                                                                        );
-                                                                    }
-                                                                    // Block (fenced) code
-                                                                    return (
-                                                                        <MarkdownCodeBlock className={className}>{codeChildren}</MarkdownCodeBlock>
-                                                                    );
-                                                                },
-                                                                pre: ({ children, ...props }: any) => (
-                                                                    <div {...props}>{children}</div>
-                                                                ),
-                                                            }}
+                                                            components={markdownComponents}
                                                             remarkPlugins={[remarkGfm, remarkFixBoldedCode]}
                                                         >
                                                             {msg.content}
@@ -152,24 +156,7 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                                 <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
                                     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed min-h-[20px]">
                                         <ReactMarkdown
-                                            components={{
-                                                code: ({ inline, className, children, ...props }: any) => {
-                                                    const codeChildren = Array.isArray(children) ? children.join("") : children;
-                                                    if (inline) {
-                                                        return (
-                                                            <code className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm" {...props}>
-                                                                {codeChildren}
-                                                            </code>
-                                                        );
-                                                    }
-                                                    return (
-                                                        <MarkdownCodeBlock className={className}>{codeChildren}</MarkdownCodeBlock>
-                                                    );
-                                                },
-                                                pre: ({ children, ...props }: any) => (
-                                                    <div {...props}>{children}</div>
-                                                ),
-                                            }}
+                                            components={markdownComponents}
                                             remarkPlugins={[remarkGfm, remarkFixBoldedCode]}
                                         >
                                             {displayContent}
