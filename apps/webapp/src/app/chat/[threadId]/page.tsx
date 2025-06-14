@@ -86,15 +86,9 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
     // -------- Markdown rendering helpers --------
     const markdownComponents = useMemo(() => {
         const CodeRenderer = ({ className = "", inline, children, node, ...props }: any) => {
-            // Primary check: parent <pre> element means a fenced/block code
-            let isBlock = false;
-            if (node && node.parent && (node.parent as any).tagName) {
-                isBlock = (node.parent as any).tagName === 'pre';
-            }
-            // Fallback: react-markdown supplies inline === true for inline snippets
-            if (!isBlock) {
-                isBlock = inline === false;
-            }
+            // Detect block code: parent is <pre> OR the `inline` flag is not true
+            const parentIsPre = node?.parent?.tagName === 'pre';
+            const isBlock = parentIsPre || inline !== true; // inline === true specifically for inline snippets
 
             if (isBlock) {
                 // Fenced / block code: preserve language class for syntax highlighting
