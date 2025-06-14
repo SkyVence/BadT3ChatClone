@@ -50,7 +50,7 @@ export function MarkdownCodeBlock({ node, inline, className: clsNameProp, childr
     // const isSingleLineCodeBlock = !inline && codeString.includes('/') && !codeString.includes('\n');
 
     if (inline) {
-        return <code className="bg-muted p-1 rounded-md text-sm font-mono text-blue-400" {...props}>{codeString}</code>;
+        return <code className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm" {...props}>{codeString}</code>;
     }
 
     // State for copy/download
