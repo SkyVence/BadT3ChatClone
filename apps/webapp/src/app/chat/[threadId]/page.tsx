@@ -104,17 +104,28 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
             );
         };
 
-        const PreRenderer = ({ children, ...props }: any) => {
-            // children expected to be a single <code> element
-            const codeElem: any = Array.isArray(children) ? children[0] : children;
-            const className = codeElem?.props?.className || "";
+        const PreRenderer = ({ children, node, ...props }: any) => {
+            let languageClass = "";
             let codeString = "";
-            const raw = codeElem?.props?.children;
-            if (typeof raw === "string") codeString = raw;
-            else if (Array.isArray(raw)) codeString = raw.join("");
+
+            // If children were suppressed (CodeRenderer returned null), use the original AST node to extract info
+            if (Array.isArray(node?.children) && node.children[0]) {
+                const codeNode: any = node.children[0];
+                languageClass = (codeNode.properties?.className ?? []).join(" ");
+                codeString = codeNode.value ?? "";
+            }
+
+            // If children are present (fallback), derive data from it
+            if (!codeString && Array.isArray(children)) {
+                const codeElem: any = children[0];
+                languageClass = codeElem?.props?.className || "";
+                const raw = codeElem?.props?.children;
+                if (typeof raw === "string") codeString = raw;
+                else if (Array.isArray(raw)) codeString = raw.join("");
+            }
 
             return (
-                <MarkdownCodeBlock className={className} {...props}>
+                <MarkdownCodeBlock className={languageClass} {...props}>
                     {codeString}
                 </MarkdownCodeBlock>
             );
