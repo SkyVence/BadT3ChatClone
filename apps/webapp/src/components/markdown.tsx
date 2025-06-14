@@ -17,15 +17,40 @@ type CodeProps = {
     [key: string]: any;
 };
 
-export function MarkdownCodeBlock({ node, inline, className, children, ...props }: CodeProps) {
-    const codeString = String(children).replace(/\n$/, '');
-    const match = /language-(\w+)/.exec(className || '');
-    const language = match ? match[1] : 'plaintext';
+export function MarkdownCodeBlock({ node, inline, className: clsNameProp, children, ...props }: CodeProps) {
+    // Determine the raw code string and language regardless of whether this
+    // component is used as the `code` renderer or as the `pre` renderer.
+
+    let rawCode = "";
+    let languageClass = clsNameProp || "";
+
+    if (typeof children === "string") {
+        rawCode = children;
+    } else if (Array.isArray(children) && children.length === 1 && typeof children[0] === "string") {
+        rawCode = children[0];
+    } else if (Array.isArray(children) && children.length === 1 && (children[0] as any)?.props) {
+        // The typical case when this component replaces a <pre> element – the
+        // actual <code> element is the only child of <pre>
+        const codeElem = children[0] as any;
+        rawCode = typeof codeElem.props.children === "string"
+            ? codeElem.props.children
+            : Array.isArray(codeElem.props.children)
+                ? codeElem.props.children.join("")
+                : String(codeElem.props.children);
+        languageClass = codeElem.props.className || languageClass;
+    } else {
+        rawCode = String(children);
+    }
+
+    const codeString = rawCode.replace(/\n$/, "");
+
+    const match = /language-(\w+)/.exec(languageClass || "");
+    const language = match ? match[1] : "plaintext";
 
     // const isSingleLineCodeBlock = !inline && codeString.includes('/') && !codeString.includes('\n');
 
     if (inline) {
-        return <code className="bg-muted p-1 rounded-md text-sm font-mono text-blue-400" {...props}>{codeString}</code>;
+        return <code className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm" {...props}>{codeString}</code>;
     }
 
     // State for copy/download
