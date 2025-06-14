@@ -72,7 +72,7 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
 
     // -------- Markdown rendering helpers --------
     const markdownComponents = useMemo(() => {
-        const CodeRenderer = ({ inline, className = "", children, node, ...props }: any) => {
+        const CodeRenderer = ({ inline: _inline, className = "", children, node, ...props }: any) => {
             // Determine if this <code> is inside a <pre> (fenced block)
             const isBlock = (node as any)?.parent?.tagName === 'pre';
 
