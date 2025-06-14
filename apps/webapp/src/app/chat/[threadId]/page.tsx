@@ -91,7 +91,8 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
     const markdownComponents = useMemo(() => {
         const CodeRenderer = ({ className = "", inline, children, node, ...props }: any) => {
             // Primary check: is this <code> directly inside a <pre> element?
-            const isBlock = node && node.parent && node.parent.tagName === 'pre';
+            const parentIsPre = node && node.parent && node.parent.tagName === 'pre';
+            const isBlock = parentIsPre || inline === false;
 
             if (isBlock) {
                 // Fenced / block code: preserve language class for syntax highlighting
