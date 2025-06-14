@@ -73,8 +73,8 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
     // -------- Markdown rendering helpers --------
     const markdownComponents = useMemo(() => {
         const CodeRenderer = ({ className = "", children, node, ...props }: any) => {
-            // Explicitly determine block vs inline by inspecting the parent element
-            const isBlock = (node as any)?.parent?.tagName === 'pre';
+            // Determine block vs inline by explicitly checking node.parent.tagName
+            const isBlock = node && node.parent && node.parent.tagName === 'pre';
 
             if (isBlock) {
                 // Code block inside <pre> – preserve language class for syntax highlighting
