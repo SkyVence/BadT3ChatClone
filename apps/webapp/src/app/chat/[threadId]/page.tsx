@@ -7,14 +7,15 @@ import { RefreshCw, AlertCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { MarkdownCodeBlock } from "@/components/markdown";
 import remarkGfm from "remark-gfm";
+import React from "react";
 
 function formatTime(dateString: string) {
     const date = new Date(dateString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export default async function ChatPage({ params }: { params: Promise<{ threadId: string }> }) {
-    const threadId = (await params).threadId;
+export default function ChatPage({ params }: { params: Promise<{ threadId: string }> }) {
+    const { threadId } = React.use(params);
     const {
         messages,
         isLoadingThread,

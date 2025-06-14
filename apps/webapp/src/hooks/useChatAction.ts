@@ -84,33 +84,41 @@ export function useChatActions() {
         [selectedThreadId, model]
     );
 
-    const deleteThread = useCallback(async (threadId: string) => {
-        await deleteMutation.mutateAsync({ threadId });
-        removeThread(threadId);
-        if (selectedThreadId === threadId) selectThread(null);
-    }, [selectedThreadId]);
-
-    const startNewThread = useCallback(async () => {
-        selectThread(null);
-        setMessages([]);
-    }, []);
-
     const refetchThreads = useCallback(async () => {
         const res = await threadsQuery.refetch();
         const threads = res.data?.data ?? [];
         setThreads(threads.map(thread => ({
             ...thread,
             lastMessagePreview: thread.messages[thread.messages.length - 1]?.content ?? '',
-            lastActivityAt: thread.messages[thread.messages.length - 1]?.updatedAt ?? thread.updatedAt,
+            lastActivityAt: (() => {
+                const val = thread.messages[thread.messages.length - 1]?.updatedAt ?? thread.updatedAt;
+                return typeof val === 'string' ? val : val.toISOString();
+            })(),
             messageCount: thread.messages.length
         })));
+    }, []);
+
+    const deleteThread = useCallback(async (threadId: string) => {
+        await deleteMutation.mutateAsync({ threadId });
+        removeThread(threadId);
+        if (selectedThreadId === threadId) selectThread(null);
+        await refetchThreads();
+    }, [selectedThreadId, refetchThreads]);
+
+    const startNewThread = useCallback(async () => {
+        selectThread(null);
+        setMessages([]);
     }, []);
 
     const fetchThreadContext = useCallback(async (threadId: string) => {
         if (!threadId) return;
         // directly fetch via tRPC utils to avoid stale closure
         const res = await utils.threads.threadContext.fetch({ threadId });
-        setMessages(res?.data?.messages ?? []);
+        setMessages((res?.data?.messages ?? []).map(msg => ({
+            ...msg,
+            createdAt: typeof msg.createdAt === 'string' ? msg.createdAt : msg.createdAt.toISOString(),
+            updatedAt: typeof msg.updatedAt === 'string' ? msg.updatedAt : msg.updatedAt.toISOString(),
+        })));
     }, []);
 
     const refetchThreadContext = useCallback(async () => {

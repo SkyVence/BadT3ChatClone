@@ -4,6 +4,7 @@ import { type AppRouter } from "@/server/api/root";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createTRPCReact, loggerLink, httpSubscriptionLink, splitLink, httpBatchLink } from "@trpc/react-query";
 import { useState } from "react";
+import superjson from "superjson";
 
 const createQueryClient = () =>
     new QueryClient({
@@ -23,7 +24,16 @@ const getQueryClient = () => {
     return (clientQueryClientSingleton ??= createQueryClient());
 }
 
-export const api = createTRPCReact<AppRouter>();
+export const api: ReturnType<typeof createTRPCReact<AppRouter>> = createTRPCReact<AppRouter>();
+
+export const subscriptionClient = api.createClient({
+    links: [
+        httpSubscriptionLink({
+            url: getBaseUrl() + "/api/trpc",
+            transformer: superjson,
+        }),
+    ],
+});
 
 export function TRPCReactProvider({ children }: { children: React.ReactNode }) {
     const QueryClient = getQueryClient();
@@ -40,9 +50,11 @@ export function TRPCReactProvider({ children }: { children: React.ReactNode }) {
                     condition: (op) => op.type === "subscription",
                     true: httpSubscriptionLink({
                         url: getBaseUrl() + "/api/trpc",
+                        transformer: superjson,
                     }),
                     false: httpBatchLink({
                         url: getBaseUrl() + "/api/trpc",
+                        transformer: superjson,
                     }),
                 }),
             ],

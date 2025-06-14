@@ -3,7 +3,7 @@ import { ModelInfo } from "@/models";
 export type ThreadMessage = {
     id: string;
     threadId: string;
-    status: string;
+    status: 'streaming' | 'complete' | 'error';
     model: string;
     role: string;
     provider: string;

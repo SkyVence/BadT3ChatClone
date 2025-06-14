@@ -1,13 +1,14 @@
 "use client";
 import { useCallback, useEffect, useRef } from "react";
 import { useChatStore } from "@/lib/statemanager";
-import { subscriptionClient } from "@/trpc/client";
+import { subscriptionClient } from "@/trpc/react";
 
 
 type Unsubscribe = () => void;
 interface StreamEntry {
     unsubscribe: Unsubscribe;
     retryCount: number;
+    retryTimer?: ReturnType<typeof setTimeout>;
 }
 
 export function useChatStream() {
@@ -42,6 +43,10 @@ export function useChatStream() {
                             } as any);
 
                             if (msg.type === "complete") {
+                                if (entry.retryTimer) {
+                                    clearTimeout(entry.retryTimer);
+                                    entry.retryTimer = undefined;
+                                }
                                 entry.unsubscribe();
                                 streamsRef.current.delete(messageId);
                                 if (streamsRef.current.size === 0) setStatus("idle");
@@ -52,7 +57,8 @@ export function useChatStream() {
                             const maxRetries = 5;
                             if (entry.retryCount <= maxRetries) {
                                 const delay = Math.min(2000 * Math.pow(1.5, entry.retryCount), 15000);
-                                setTimeout(start, delay);
+                                if (entry.retryTimer) clearTimeout(entry.retryTimer);
+                                entry.retryTimer = setTimeout(start, delay);
                             } else {
                                 setError(err.message);
                                 setStatus("error");
@@ -84,11 +90,21 @@ export function useChatStream() {
         if (messageId) {
             const entry = streamsRef.current.get(messageId);
             if (entry) {
+                if (entry.retryTimer) {
+                    clearTimeout(entry.retryTimer);
+                    entry.retryTimer = undefined;
+                }
                 entry.unsubscribe();
                 streamsRef.current.delete(messageId);
             }
         } else {
-            streamsRef.current.forEach(e => e.unsubscribe());
+            streamsRef.current.forEach(e => {
+                if (e.retryTimer) {
+                    clearTimeout(e.retryTimer);
+                    e.retryTimer = undefined;
+                }
+                e.unsubscribe();
+            });
             streamsRef.current.clear();
         }
 

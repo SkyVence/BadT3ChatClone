@@ -5,6 +5,7 @@ import { ThreadMessage, ThreadSummary } from "@/types/message";
 import { ModelInfo, models } from "@/models";
 
 type Status = "idle" | "loading" | "sending" | "streaming" | "error";
+type PersistableModelInfo = Omit<ModelInfo, 'providerIcon'> & { providerIcon: null };
 
 interface ChatState {
     /* ---------- domain data ---------- */
@@ -53,7 +54,13 @@ export const useChatStore = create<ChatState>()(
                     get().messages.filter(m => m.threadId === get().selectedThreadId),
 
                 /* ----- actions ----- */
-                setThreads: threads => set({ threads }),
+                setThreads: threads => set(state => {
+                    let selectedThreadId = state.selectedThreadId;
+                    if (!threads.some(t => t.id === selectedThreadId)) {
+                        selectedThreadId = null;
+                    }
+                    return { threads, selectedThreadId };
+                }),
                 upsertThread: thread =>
                     set(state => {
                         const idx = state.threads.findIndex(t => t.id === thread.id);
@@ -66,9 +73,15 @@ export const useChatStore = create<ChatState>()(
                             };
                     }),
                 removeThread: id =>
-                    set(state => ({
-                        threads: state.threads.filter(t => t.id !== id),
-                    })),
+                    set(state => {
+                        const threads = state.threads.filter(t => t.id !== id);
+                        const messages = state.messages.filter(m => m.threadId !== id);
+                        let selectedThreadId = state.selectedThreadId;
+                        if (selectedThreadId === id) {
+                            selectedThreadId = threads.length > 0 ? threads[0].id : null;
+                        }
+                        return { threads, messages, selectedThreadId };
+                    }),
 
                 setMessages: msgs => set({ messages: msgs }),
                 upsertMessage: msg =>
@@ -89,8 +102,8 @@ export const useChatStore = create<ChatState>()(
 
                 selectThread: id => set({ selectedThreadId: id }),
                 setModel: model => {
-                    const { providerIcon, ...rest } = model as any;
-                    set({ model: { ...rest, providerIcon: null } as any });
+                    const { providerIcon, ...rest } = model;
+                    set({ model: { ...rest, providerIcon: null } as PersistableModelInfo });
                 },
                 setStatus: status => set({ status }),
                 setError: error => set({ error }),
@@ -99,7 +112,7 @@ export const useChatStore = create<ChatState>()(
                 name: "chat-store",
                 version: 2,
                 migrate: (persistedState: any, version) => {
-                    if (persistedState && persistedState.model && persistedState.model.providerIcon) {
+                    if (persistedState?.model?.providerIcon) {
                         persistedState.model.providerIcon = null;
                     }
                     return persistedState;

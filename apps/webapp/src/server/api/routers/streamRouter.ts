@@ -199,7 +199,9 @@ export const streamRouter = router({
             const channel = `message:${input.messageId}`;
             const queue: string[] = [];
             const handler = (_channel: string, message: string) => {
-                queue.push(message);
+                if (_channel === channel) {
+                    queue.push(message);
+                }
             };
             subscriber.on('message', handler);
             subscriber.subscribe(channel);

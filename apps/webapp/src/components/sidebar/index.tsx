@@ -11,8 +11,7 @@ import { api } from "@/trpc/react";
 import Link from "next/link";
 import { Fragment, useEffect, useRef, useState, useCallback } from "react";
 import { Skeleton } from "../ui/skeleton";
-import type { Thread } from "@/types/threads";
-import { useInfiniteQuery } from '@tanstack/react-query';
+import type { ThreadSummary } from "@/types/message";
 import { usePathname, useRouter } from "next/navigation";
 import { useBetterChat } from "@/context/betterChatContext";
 import { Button } from "../ui/button";
@@ -64,63 +63,35 @@ function formatTime(dateString: string): string {
 export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
     const { user, signOut, isLoading: isLoadingAuth } = useAuth();
     const pathname = usePathname();
-    const { selectedThreadId: currentThreadId, startNewThread, deleteThread } = useBetterChat();
+    const { selectedThreadId: currentThreadId, startNewThread, deleteThread, threads: zustandThreads } = useBetterChat();
+    const [displayedThreads, setDisplayedThreads] = useState<ThreadSummary[]>([]);
+    const [offset, setOffset] = useState(0);
+    const [isFetchingNextPage, setIsFetchingNextPage] = useState(false);
+    const limit = 15;
     const loaderRef = useRef<HTMLDivElement>(null);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const [isNearBottom, setIsNearBottom] = useState(false);
     const [isMenuHover, setIsMenuHover] = useState(false);
 
-    const [offset, setOffset] = useState(0);
-    const [allThreads, setAllThreads] = useState<Thread[]>([]);
-    const [isFetchingNextPage, setIsFetchingNextPage] = useState(false);
-    const limit = 15;
-
-    const {
-        data,
-        isLoading: isLoadingCurrentPage,
-        isError,
-        error,
-    } = api.threads.getThreads.useQuery(
-        { limit, offset },
-        {
-            staleTime: 1000 * 60 * 5,
-            enabled: true
-        }
-    );
-
-    // Update allThreads when new data arrives
+    // Reset displayedThreads when zustandThreads changes (e.g., after deletion or addition)
     useEffect(() => {
-        if (data?.data) {
-            setAllThreads(prev => {
-                if (offset === 0) {
-                    // First page, replace all threads
-                    return data.data;
-                } else {
-                    // Subsequent pages, append new threads
-                    const newThreads = data.data.filter(
-                        newThread => !prev.some(existingThread => existingThread.id === newThread.id)
-                    );
-                    return [...prev, ...newThreads];
-                }
-            });
-            setIsFetchingNextPage(false);
-        }
-    }, [data, offset]);
-
-    // Reset accumulated threads when user logs in/out or when a new thread is created
-    useEffect(() => {
-        setAllThreads([]);
-        setOffset(0);
+        setDisplayedThreads(zustandThreads.slice(0, limit));
+        setOffset(limit);
         setIsFetchingNextPage(false);
-    }, [user?.id]);
+    }, [zustandThreads]);
 
-    const hasNextPage = data ? offset + limit < data.meta.total : false;
-    const isLoading = offset === 0 ? isLoadingCurrentPage : false; // Only show loading for first page
+    const hasNextPage = offset < zustandThreads.length;
+    const isLoading = false; // Only show loading for first page if you have a loading state
 
     const fetchNextPage = () => {
         if (hasNextPage && !isFetchingNextPage) {
             setIsFetchingNextPage(true);
+            setDisplayedThreads(prev => [
+                ...prev,
+                ...zustandThreads.slice(offset, offset + limit)
+            ]);
             setOffset(prev => prev + limit);
+            setIsFetchingNextPage(false);
         }
     };
 
@@ -168,13 +139,12 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
         }
     }, [handleScroll]);
 
-    // Use threads from API; no optimistic local thread (handled globally)
-    const sortedThreads = allThreads.sort((a: Thread, b: Thread) =>
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    const sortedThreads = displayedThreads.sort((a, b) =>
+        new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime()
     );
 
     // Group threads by date category
-    function groupThreadsByDate(threads: Thread[]) {
+    function groupThreadsByDate(threads: ThreadSummary[]) {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const yesterday = new Date(today);
@@ -184,7 +154,7 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
         const last30 = new Date(today);
         last30.setDate(today.getDate() - 30);
 
-        const groups: { [key: string]: Thread[] } = {
+        const groups: { [key: string]: ThreadSummary[] } = {
             'Today': [],
             'Yesterday': [],
             'Last 7 days': [],
@@ -193,10 +163,8 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
         };
 
         threads.forEach(thread => {
-            const updated = new Date(thread.updatedAt);
-            if (
-                updated >= today
-            ) {
+            const updated = new Date(thread.lastActivityAt);
+            if (updated >= today) {
                 groups['Today'].push(thread);
             } else if (
                 updated.getDate() === yesterday.getDate() &&
@@ -272,17 +240,17 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
                                                     </SidebarGroupLabel>
                                                     {groupedThreads[group].map((thread: any) => {
                                                         const isActive = pathname === `/chat/${thread.id}`;
-                                                        const latestMessage = thread.messages?.[0];
 
                                                         return (
                                                             <SidebarMenuItem key={thread.id} >
                                                                 <SidebarMenuButton asChild className={isActive ? "bg-accent/40 backdrop-blur-sm" : "static"} onMouseEnter={() => setIsMenuHover(true)} onMouseLeave={() => setIsMenuHover(false)}>
                                                                     <Link href={`/chat/${thread.id}`} className="flex flex-col items-start gap-1  h-auto">
                                                                         <div>
-                                                                            <SidebarMenuAction showOnHover={true} className="absolute left-5/6 top-1/2 -translate-y-1/2" onClick={(e) => {
+                                                                            <SidebarMenuAction showOnHover={true} className="absolute left-5/6 top-1/2 -translate-y-1/2" onClick={async (e) => {
                                                                                 e.preventDefault();
                                                                                 e.stopPropagation();
-                                                                                deleteThread(thread.id);
+                                                                                await deleteThread(thread.id);
+                                                                                router.push("/");
                                                                             }}>
                                                                                 <motion.div
                                                                                     animate={{ x: isMenuHover ? 0 : 100 }}
@@ -335,15 +303,6 @@ export function SidebarApp({ setOpen }: { setOpen: (open: boolean) => void }) {
                                             <SidebarMenuItem>
                                                 <SidebarMenuButton>
                                                     <span className="text-muted-foreground">No chats yet</span>
-                                                </SidebarMenuButton>
-                                            </SidebarMenuItem>
-                                        )}
-
-                                        {/* Error state */}
-                                        {isError && !isLoading && (
-                                            <SidebarMenuItem>
-                                                <SidebarMenuButton>
-                                                    <span className="text-red-500">Error loading chats</span>
                                                 </SidebarMenuButton>
                                             </SidebarMenuItem>
                                         )}
