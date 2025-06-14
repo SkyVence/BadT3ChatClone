@@ -54,13 +54,12 @@ export function BetterChatProvider({ children }: { children: ReactNode }) {
 
     const actions = useChatActions();
     const { startStream, stopStream, resumeActiveStreams } = useChatStream();
+    const { refetchThreads } = actions;
 
-    // Fetch latest threads from the server when the provider mounts so that the
-    // sidebar stays in sync with the database after a full page reload.
     useEffect(() => {
         // Fire and forget – any errors are handled inside the hook
-        actions.refetchThreads();
-    }, [actions.refetchThreads]);
+        refetchThreads();
+    }, [refetchThreads]);
 
     const value: BetterChatContextType = {
         messages,

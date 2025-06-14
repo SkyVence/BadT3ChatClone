@@ -108,7 +108,20 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                                                     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
                                                         <ReactMarkdown
                                                             components={{
-                                                                code: (props: any) => <MarkdownCodeBlock {...props}>{props.children}</MarkdownCodeBlock>
+                                                                // Inline code
+                                                                code: ({ inline, className, children, ...props }: any) => {
+                                                                    if (inline) {
+                                                                        return (
+                                                                            <code className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm" {...props}>
+                                                                                {children}
+                                                                            </code>
+                                                                        );
+                                                                    }
+                                                                    // Block code is rendered by `pre` below, so don't render anything here
+                                                                    return null;
+                                                                },
+                                                                // Block code wrapper
+                                                                pre: (props: any) => <MarkdownCodeBlock {...props}>{props.children}</MarkdownCodeBlock>,
                                                             }}
                                                             remarkPlugins={[remarkGfm, remarkFixBoldedCode]}
                                                         >
@@ -137,7 +150,18 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                                     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed min-h-[20px]">
                                         <ReactMarkdown
                                             components={{
-                                                code: (props: any) => <MarkdownCodeBlock {...props}>{props.children}</MarkdownCodeBlock>
+                                                code: ({ inline, className, children, ...props }: any) => {
+                                                    if (inline) {
+                                                        return (
+                                                            <code className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm" {...props}>
+                                                                {children}
+                                                            </code>
+                                                        );
+                                                    }
+                                                    // Block code is rendered by `pre` below, so don't render anything here
+                                                    return null;
+                                                },
+                                                pre: (props: any) => <MarkdownCodeBlock {...props}>{props.children}</MarkdownCodeBlock>,
                                             }}
                                             remarkPlugins={[remarkGfm, remarkFixBoldedCode]}
                                         >
