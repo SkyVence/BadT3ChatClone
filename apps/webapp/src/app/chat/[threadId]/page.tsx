@@ -85,9 +85,9 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
 
     // -------- Markdown rendering helpers --------
     const markdownComponents = useMemo(() => {
-        const CodeRenderer = ({ className = "", inline, children, node, ...props }: any) => {
-            // Detect block code: parent is <pre> OR the `inline` flag is not true
-            const isBlock = inline === false || inline === undefined || inline === null;
+        const CodeRenderer = ({ className = "", children, node, ...props }: any) => {
+            // Detect block code: the direct parent must be a <pre> element
+            const isBlock = typeof node?.parent?.tagName === "string" && node.parent.tagName.toLowerCase() === "pre";
 
             if (isBlock) {
                 // Fenced / block code: preserve language class for syntax highlighting
