@@ -72,14 +72,40 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
 
     // -------- Markdown rendering helpers --------
     const markdownComponents = useMemo(() => {
-        const CodeRenderer = ({ inline, className, children, ...props }: any) => {
-            const codeChildren = Array.isArray(children) ? children.join("") : children;
+        const CodeRenderer = ({ inline, className = "", children, ...props }: any) => {
+            const codeText = Array.isArray(children) ? children.join("") : children;
+            // Inline code
             if (inline) {
-                return <code className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm" {...props}>{codeChildren}</code>;
+                return (
+                    <code
+                        className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm"
+                        {...props}
+                    >
+                        {codeText}
+                    </code>
+                );
             }
-            return <code className={className} {...props}>{codeChildren}</code>;
+            // Block code (inside <pre>)
+            return (
+                <code className={`text-sm font-mono ${className}`} {...props}>
+                    {codeText}
+                </code>
+            );
         };
-        return { code: CodeRenderer } as const;
+
+        const PreRenderer = ({ children, ...props }: any) => (
+            <pre
+                className="my-2 rounded-md bg-muted overflow-auto border border-border p-3"
+                {...props}
+            >
+                {children}
+            </pre>
+        );
+
+        return {
+            code: CodeRenderer,
+            pre: PreRenderer,
+        } as const;
     }, []);
 
     return (
