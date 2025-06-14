@@ -4,39 +4,12 @@ import { useChatStore } from "@/lib/statemanager";
 import { useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, AlertCircle } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { visit } from "unist-util-visit";
 import React from "react";
-import { MarkdownCodeBlock } from "@/components/markdown";
+import MarkdownRenderer from "@/components/MarkdownRenderer";
 
 function formatTime(dateString: string) {
     const date = new Date(dateString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
-function remarkFixBoldedCode() {
-    return (tree: any) => {
-        visit(tree, "text", (node) => {
-            const regex = /\*\*\`(.+?)\`\*\*/g;
-            if (regex.test(node.value)) {
-                node.value = node.value.replace(regex, "`$1`");
-            }
-        });
-    };
-}
-
-// Rehype plugin to attach parent references for each node so that
-// CodeRenderer can reliably check `node.parent.tagName === 'pre'`.
-function rehypeAddParents() {
-    return (tree: any) => {
-        visit(tree, (node: any, _index: any, parent: any) => {
-            if (node && typeof node === "object") {
-                // Attach parent reference as an enumerable property so it survives any cloning
-                (node as any).parent = parent;
-            }
-        });
-    };
 }
 
 export default function ChatPage({ params }: { params: Promise<{ threadId: string }> }) {
@@ -84,63 +57,6 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
     const displayContent = streamingMessage?.content ?? "";
     const displayStatus: 'streaming' | 'complete' | 'error' = streamingMessage?.status as any ?? 'complete';
 
-    // -------- Markdown rendering helpers --------
-    const markdownComponents = useMemo(() => {
-        const CodeRenderer = ({ className = "", children, node, ...props }: any) => {
-            // Detect block code: the direct parent must be a <pre> element
-            const isBlock = typeof node?.parent?.tagName === "string" && node.parent.tagName.toLowerCase() === "pre";
-
-            if (isBlock) {
-                // Block code will be rendered by PreRenderer to include toolbar, so render nothing here to avoid duplication
-                return null;
-            }
-
-            // Inline code styling when not inside <pre>
-            const text = Array.isArray(children) ? children.join("") : children;
-            return (
-                <code className="bg-muted px-1 py-0.5 rounded-md font-mono text-blue-400 text-sm" {...props}>
-                    {text}
-                </code>
-            );
-        };
-
-        const PreRenderer = ({ children, node, ...props }: any) => {
-            let languageClass = "";
-            let codeString = "";
-
-            // Prefer AST inspection (works when CodeRenderer returned null)
-            if (node && Array.isArray(node.children)) {
-                const codeNode: any = node.children.find((n: any) => n.tagName === "code") || node.children[0];
-                if (codeNode) {
-                    languageClass = (codeNode.properties?.className ?? []).join(" ");
-                    // Extract raw text from the text child
-                    if (Array.isArray(codeNode.children) && codeNode.children[0]?.value) {
-                        codeString = codeNode.children.map((c: any) => c.value || "").join("");
-                    }
-                }
-            }
-
-            // Fallback to rendered children (in case CodeRenderer didn't return null)
-            if (!codeString && Array.isArray(children) && children.length) {
-                const codeElem: any = children[0];
-                languageClass = codeElem?.props?.className || languageClass;
-                const raw = codeElem?.props?.children;
-                codeString = typeof raw === "string" ? raw : Array.isArray(raw) ? raw.join("") : "";
-            }
-
-            return (
-                <MarkdownCodeBlock className={languageClass} {...props}>
-                    {codeString}
-                </MarkdownCodeBlock>
-            );
-        };
-
-        return {
-            code: CodeRenderer,
-            pre: PreRenderer,
-        } as const;
-    }, []);
-
     return (
         <div className="flex flex-col min-h-screen bg-background">
             <div
@@ -176,13 +92,7 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                                             <div className="text-foreground">
                                                 <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-div:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
                                                     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                                                        <ReactMarkdown
-                                                            components={markdownComponents}
-                                                            remarkPlugins={[remarkGfm, remarkFixBoldedCode]}
-                                                            rehypePlugins={[rehypeAddParents]}
-                                                        >
-                                                            {msg.content}
-                                                        </ReactMarkdown>
+                                                        <MarkdownRenderer content={String(msg.content ?? "")} />
                                                     </div>
                                                 </div>
                                             </div>
@@ -204,13 +114,7 @@ export default function ChatPage({ params }: { params: Promise<{ threadId: strin
                             <div className="text-foreground">
                                 <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:border-border">
                                     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed min-h-[20px]">
-                                        <ReactMarkdown
-                                            components={markdownComponents}
-                                            remarkPlugins={[remarkGfm, remarkFixBoldedCode]}
-                                            rehypePlugins={[rehypeAddParents]}
-                                        >
-                                            {displayContent}
-                                        </ReactMarkdown>
+                                        <MarkdownRenderer content={displayContent} />
                                     </div>
                                 </div>
                             </div>
